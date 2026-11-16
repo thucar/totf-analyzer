@@ -29,6 +29,8 @@ THREE_ROUNDS = _recording("20261115_061911")
 NEW_SERIES = (
     "left_guard_up",
     "right_guard_up",
+    "hips_x",
+    "hips_z",
     "head_slip_lateral",
     "fighter_distance",
     "blade_angle",

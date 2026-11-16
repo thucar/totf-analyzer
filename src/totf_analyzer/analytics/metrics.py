@@ -314,6 +314,8 @@ def _session_facts(session: ParsedSession, totals: dict[int, dict]) -> SessionFa
         rounds_scheduled=int(venue.get("m_rounds") or len(session.metadata["m_scoring"]["m_rounds"])),
         round_duration_sec=float(venue.get("m_roundDurationSeconds") or 0),
         break_duration_sec=float(venue.get("m_roundBreakDurationSeconds") or 0),
+        ring_size_x_m=_finite(float(venue["m_ringBoundsSizeX"])) if venue.get("m_ringBoundsSizeX") else None,
+        ring_size_z_m=_finite(float(venue["m_ringBoundsSizeZ"])) if venue.get("m_ringBoundsSizeZ") else None,
         duration_sec=round(session.duration_sec, 4),
         fixed_timestep=session.fixed_timestep,
         start_tick=session.start_tick,
@@ -2530,8 +2532,17 @@ def _series(session: ParsedSession, bodies: dict[int, dict]) -> list[Series]:
             series.append(Series(name="head_speed", corner=track.corner, t=ts, y=ys))
             ts, ys = _bucket(t_body, head[:, 1], SERIES_STEP_SEC)
             series.append(Series(name="head_height", corner=track.corner, t=ts, y=ys))
-        opponent = session.tracks[_opponent(session, track.corner)]
         ticks = track.skeleton_ticks.astype(np.int64)
+        if len(ticks):
+            hips = track.skeleton_pos[:, HIPS, :].astype(np.float64)
+            ts_x, ys_x = _bucket(t_body, hips[:, 0], SERIES_STEP_SEC)
+            ts_z, ys_z = _bucket(t_body, hips[:, 2], SERIES_STEP_SEC)
+            series.append(Series(name="hips_x", corner=track.corner, t=ts_x, y=ys_x))
+            series.append(Series(name="hips_z", corner=track.corner, t=ts_z, y=ys_z))
+        else:
+            series.append(Series(name="hips_x", corner=track.corner, t=[], y=[]))
+            series.append(Series(name="hips_z", corner=track.corner, t=[], y=[]))
+        opponent = session.tracks[_opponent(session, track.corner)]
         if len(ticks) and len(opponent.skeleton_ticks) and session.fixed_timestep > 0:
             forward, right = _local_axes(track, opponent)
             pos = track.skeleton_pos.astype(np.float64)
@@ -2776,6 +2787,7 @@ def _static_notes() -> list[DecodeNote]:
             confidence="inferred",
             note=(
                 "left_guard_up and right_guard_up are 1.0 s bucket shares in [0, 1] using the same head-relative box as guard_up. "
+                "hips_x and hips_z are 0.25 s bucket means of world horizontal hip coordinates in meters. "
                 "head_slip_lateral, fighter_distance, blade_angle, and tangential_speed are 0.25 s bucket means on the opponent frame. "
                 "head_slip_lateral is signed (head - hips) on the fighter's right. "
                 "fighter_distance is horizontal hip-to-hip distance. "

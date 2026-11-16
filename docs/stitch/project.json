@@ -1,0 +1,232 @@
+{
+  "name": "projects/811732486051757994",
+  "title": "Boxing Fight Analytics Dashboard",
+  "visibility": "PRIVATE",
+  "createTime": "2026-11-16T16:23:11.077068Z",
+  "updateTime": "2026-11-16T16:38:04.728012Z",
+  "projectType": "TEXT_TO_UI_PRO",
+  "origin": "WEB",
+  "deviceType": "DESKTOP",
+  "designTheme": {
+    "colorMode": "DARK",
+    "font": "SPACE_GROTESK",
+    "roundness": "ROUND_FOUR",
+    "customColor": "#ef4444",
+    "headlineFont": "SPACE_GROTESK",
+    "bodyFont": "INTER",
+    "labelFont": "JETBRAINS_MONO",
+    "namedColors": {
+      "on_error": "#690005",
+      "secondary_container": "#03b5d3",
+      "on_secondary_fixed_variant": "#004e5c",
+      "error_container": "#93000a",
+      "surface_variant": "#31353d",
+      "on_secondary_container": "#00424e",
+      "primary": "#ffb3ad",
+      "on_primary_container": "#5c0008",
+      "on_error_container": "#ffdad6",
+      "on_secondary": "#003640",
+      "secondary_fixed_dim": "#4cd7f6",
+      "on_primary_fixed": "#410004",
+      "error": "#ffb4ab",
+      "inverse_on_surface": "#2d3038",
+      "surface_container_lowest": "#0a0e15",
+      "surface_dim": "#10131b",
+      "background": "#10131b",
+      "inverse_surface": "#dfe2ed",
+      "on_tertiary_container": "#3e2400",
+      "tertiary": "#ffb95f",
+      "surface_tint": "#ffb3ad",
+      "outline": "#ab8986",
+      "secondary": "#4cd7f6",
+      "surface_container_highest": "#31353d",
+      "on_primary_fixed_variant": "#930013",
+      "outline_variant": "#5b403e",
+      "tertiary_fixed": "#ffddb8",
+      "on_surface_variant": "#e4beba",
+      "primary_fixed": "#ffdad7",
+      "tertiary_container": "#ca8100",
+      "on_secondary_fixed": "#001f26",
+      "secondary_fixed": "#acedff",
+      "surface_container": "#1c2027",
+      "on_tertiary_fixed": "#2a1700",
+      "inverse_primary": "#b91a24",
+      "surface": "#10131b",
+      "on_tertiary": "#472a00",
+      "primary_container": "#ff5451",
+      "surface_container_high": "#262a32",
+      "on_background": "#dfe2ed",
+      "tertiary_fixed_dim": "#ffb95f",
+      "surface_bright": "#353941",
+      "on_primary": "#68000a",
+      "on_tertiary_fixed_variant": "#653e00",
+      "primary_fixed_dim": "#ffb3ad",
+      "on_surface": "#dfe2ed",
+      "surface_container_low": "#181c23"
+    },
+    "designMd": "---\nname: Apex Telemetry\ncolors:\n  surface: '#10131b'\n  surface-dim: '#10131b'\n  surface-bright: '#353941'\n  surface-container-lowest: '#0a0e15'\n  surface-container-low: '#181c23'\n  surface-container: '#1c2027'\n  surface-container-high: '#262a32'\n  surface-container-highest: '#31353d'\n  on-surface: '#dfe2ed'\n  on-surface-variant: '#e4beba'\n  inverse-surface: '#dfe2ed'\n  inverse-on-surface: '#2d3038'\n  outline: '#ab8986'\n  outline-variant: '#5b403e'\n  surface-tint: '#ffb3ad'\n  primary: '#ffb3ad'\n  on-primary: '#68000a'\n  primary-container: '#ff5451'\n  on-primary-container: '#5c0008'\n  inverse-primary: '#b91a24'\n  secondary: '#4cd7f6'\n  on-secondary: '#003640'\n  secondary-container: '#03b5d3'\n  on-secondary-container: '#00424e'\n  tertiary: '#ffb95f'\n  on-tertiary: '#472a00'\n  tertiary-container: '#ca8100'\n  on-tertiary-container: '#3e2400'\n  error: '#ffb4ab'\n  on-error: '#690005'\n  error-container: '#93000a'\n  on-error-container: '#ffdad6'\n  primary-fixed: '#ffdad7'\n  primary-fixed-dim: '#ffb3ad'\n  on-primary-fixed: '#410004'\n  on-primary-fixed-variant: '#930013'\n  secondary-fixed: '#acedff'\n  secondary-fixed-dim: '#4cd7f6'\n  on-secondary-fixed: '#001f26'\n  on-secondary-fixed-variant: '#004e5c'\n  tertiary-fixed: '#ffddb8'\n  tertiary-fixed-dim: '#ffb95f'\n  on-tertiary-fixed: '#2a1700'\n  on-tertiary-fixed-variant: '#653e00'\n  background: '#10131b'\n  on-background: '#dfe2ed'\n  surface-variant: '#31353d'\ntypography:\n  display-hero:\n    fontFamily: JetBrains Mono\n    fontSize: 48px\n    fontWeight: '700'\n    lineHeight: 52px\n    letterSpacing: -0.04em\n  display-hero-mobile:\n    fontFamily: JetBrains Mono\n    fontSize: 32px\n    fontWeight: '700'\n    lineHeight: 36px\n    letterSpacing: -0.03em\n  headline-lg:\n    fontFamily: Space Grotesk\n    fontSize: 28px\n    fontWeight: '700'\n    lineHeight: 34px\n    letterSpacing: -0.02em\n  headline-md:\n    fontFamily: Space Grotesk\n    fontSize: 22px\n    fontWeight: '600'\n    lineHeight: 28px\n    letterSpacing: -0.01em\n  headline-sm:\n    fontFamily: Space Grotesk\n    fontSize: 18px\n    fontWeight: '600'\n    lineHeight: 24px\n    letterSpacing: 0em\n  telemetry-metric-lg:\n    fontFamily: JetBrains Mono\n    fontSize: 32px\n    fontWeight: '600'\n    lineHeight: 36px\n    letterSpacing: -0.03em\n  telemetry-metric-md:\n    fontFamily: JetBrains Mono\n    fontSize: 20px\n    fontWeight: '500'\n    lineHeight: 24px\n    letterSpacing: -0.02em\n  telemetry-metric-sm:\n    fontFamily: JetBrains Mono\n    fontSize: 14px\n    fontWeight: '500'\n    lineHeight: 18px\n    letterSpacing: -0.01em\n  body-lg:\n    fontFamily: Inter\n    fontSize: 16px\n    fontWeight: '400'\n    lineHeight: 24px\n  body-md:\n    fontFamily: Inter\n    fontSize: 14px\n    fontWeight: '400'\n    lineHeight: 20px\n  body-sm:\n    fontFamily: Inter\n    fontSize: 12px\n    fontWeight: '400'\n    lineHeight: 16px\n  label-caps:\n    fontFamily: JetBrains Mono\n    fontSize: 11px\n    fontWeight: '600'\n    lineHeight: 14px\n    letterSpacing: 0.08em\n  label-data:\n    fontFamily: JetBrains Mono\n    fontSize: 12px\n    fontWeight: '400'\n    lineHeight: 16px\n    letterSpacing: 0.02em\nrounded:\n  sm: 0.125rem\n  DEFAULT: 0.25rem\n  md: 0.375rem\n  lg: 0.5rem\n  xl: 0.75rem\n  full: 9999px\nspacing:\n  gutter: 1rem\n  gutter-desktop: 1.25rem\n  margin: 1rem\n  margin-desktop: 2rem\n  space-xs: 0.25rem\n  space-sm: 0.5rem\n  space-md: 0.75rem\n  space-lg: 1.25rem\n  space-xl: 2rem\n---\n\n## Brand & Style\n\nThis design system is engineered for elite VR boxing analytics and high-velocity combat telemetry. The interface channels the technical precision of modern motorsport telemetry and the raw physical tension of the boxing ring.\n\nThe aesthetic fuses **Modern Technical Minimalism** with **Sleek Data-Dense Brutalism**:\n- **Atmosphere:** Deep, low-reflectance charcoal and abyssal navy surfaces eliminate visual clutter and eye fatigue during prolonged analysis sessions.\n- **Personality:** Analytical, uncompromising, tactical, and immediate. It treats virtual combat with professional-tier sports science reverence.\n- **Hierarchy of Focus:** Combat status and instantaneous kinetic reads dominate the top-level viewport, while nuanced biomechanics, velocity charts, and impact vectors sit in tightly regimented modules.\n- **Micro-accents:** Tactical status dots, razor-thin panel separations, directional color zoning (Red Corner vs. Blue Corner), and subdued glowing edge accents on high-damage threshold indicators.\n\n## Colors\n\nThe palette utilizes deliberate combat zoning set against deep, light-absorbent base slates.\n\n### Functional Roles\n- **Canvas Base (`#0c1017`):** The foundational viewport floor. Anchors deep spatial contrast.\n- **Surface Elevation 1 (`#151b26`):** Secondary structural bays, global shell navigation, and panel headers.\n- **Surface Elevation 2 (`#1c2433`):** Modular telemetry cards, data tiles, and interactive states.\n- **Border Subtle (`#243044`):** Crisp, low-luminosity boundaries defining data modules without visual heaviness.\n- **Primary / Red Corner (`#ef4444`):** Designates Fighter 1 metrics, offensive velocity metrics, critical damage indicators, and power punch vectors.\n- **Secondary / Blue Corner (`#06b6d4`):** Designates Opponent telemetry, defensive reads, evasive slip vectors, and counter strike tracking.\n- **Tertiary / Kinetic Gold (`#f59e0b`):** Key fight KPIs, knockdowns, damage thresholds, judge scoring differentials, and telemetry milestones.\n- **Text & High-Luminance Accents:**\n  - Crisp Primary Text: `#ffffff`\n  - Secondary Readouts & Labels: `#e2e8f0`\n  - Passive Muted Data & Grid Markings: `#94a3b8`\n  - Disabled / Background Tracks: `#1e293b`\n\n## Typography\n\nTypography establishes an instant operational separation between combat narrative and numerical output:\n\n1. **Space Grotesk (Headings & Section Dividers):** Provides structured, geometric presence with athletic energy.\n2. **JetBrains Mono (Telemetry Numbers, Metrics, Timestamps, and Coordinates):** Ensures tabular alignment across changing decimal readings, punch speeds (m/s), force estimates (N), and punch clocks.\n3. **Inter (Interface Narrative & General Content):** Unobtrusive clarity for fighter profiles, system tooltips, round notes, and commentary.\n\n### Typographic Rules\n- All numeric readouts, fight timers, and round scores must default to `font-feature-settings: 'tnum' 1, 'zero' 1` to guarantee rigid column stability without visual jitter during live updates.\n- Section tags and field labels use `label-caps` in uppercase format to heighten command-center legibility.\n\n## Layout & Spacing\n\nThe layout employs a high-density, 12-column adaptive fluid dashboard structure designed to maintain spatial coherence across multi-monitor analytics rigs, widescreen displays, and tablets.\n\n### Responsive Breakpoints & Composition\n- **Desktop / Ultrawide (>1440px):** 12-column grid. Outer margins set to `margin-desktop`, column gutters at `gutter-desktop`. The top level hosts an anchor fight header and split scorecard strip. Sub-views populate through a four-column sidebar (Round breakdown & Punch log stream) flanking an eight-column primary analytics viewport (3D strike trajectory, heatmaps, and combination telemetry).\n- **Tablet / Laptop (768px \u2013 1439px):** 12-column grid collapsing into dual-column paired cards (6 cols each) or full-width analytical charts (12 cols).\n- **Mobile (<767px):** Single-column stack. Outer margins contract to `margin`. Corner comparison tables transform into swipeable comparative viewports with sticky corner color tags.\n\n### Density Architecture\nSpacing uses a compact 4px baseline rhythm (`space-xs: 4px`, `space-sm: 8px`, `space-md: 12px`, `space-lg: 20px`, `space-xl: 32px`). This preserves high data payload per square inch while using strict gutter discipline to avoid optical fatigue.\n\n## Elevation & Depth\n\nThis system intentionally rejects heavy drop-shadows and fuzzy blur aesthetics in favor of **Crisp Architectural Layering** and **Targeted Optical Glows**:\n\n1. **Surface Tiers:**\n   - **Canvas Floor (`#0c1017`):** Receded base level.\n   - **Panel Substrate (`#151b26`):** Sits flush with a 1px continuous border (`#243044`).\n   - **Active Data Pods (`#1c2433`):** Elevated cards with sharper perimeter contrast.\n2. **Ghost Borders:**\n   - Elements are framed by 1px solid borders in `#243044`. Selected or focused modules intensify their borders to `#3b82f6` or the respective corner accent (`#ef4444` / `#06b6d4`).\n3. **Corner Luminous Radiance:**\n   - Instead of diffuse drop-shadows, peak punch impact indicators, KO alert badges, and active round markers employ localized ambient glows:\n     - Red Accent Glow: `box-shadow: 0 0 16px -2px rgba(239, 68, 68, 0.25)`\n     - Cyan Accent Glow: `box-shadow: 0 0 16px -2px rgba(6, 182, 212, 0.25)`\n     - Key Metric/Damage Glow: `box-shadow: 0 0 14px -2px rgba(245, 158, 11, 0.2)`\n\n## Shapes\n\nThe design system embraces an aggressive, streamlined silhouette using compact corner radii (`roundedness: 1`):\n- **Base Elements & Badges:** `rounded-sm` (0.25rem / 4px) provides subtle structural softening without losing technical rigidity.\n- **Containers & Metric Cards:** `rounded-lg` (0.5rem / 8px) defines modular panels cleanly against the slate substrate.\n- **Modal Windows & Ring Canvas Overlays:** `rounded-xl` (0.75rem / 12px) provides maximum hierarchy separation for diagnostic dialogs.\n- **Pills & Status Bullets:** Fully rounded radii are reserved strictly for binary status dots, round phase tags, and live tracking beacons.\n\n## Components\n\n### 1. Telemetry & Metric Cards\n- **Structure:** Solid `#1c2433` background with a 1px `#243044` border.\n- **Top Row:** Upper-left micro-label using `label-caps` in `#94a3b8`; upper-right tactical status indicator or differential indicator (e.g., `+14.2%` in `#06b6d4` or `#ef4444`).\n- **Center:** High-impact metric value using `telemetry-metric-lg` in `#ffffff` paired with a small units indicator (`m/s`, `DPS`, `psi`) in `#94a3b8`.\n- **Base:** Mini sparkline graph or segmented horizontal bar gauge (`#151b26` background, colored fill by corner).\n\n### 2. Action Controls & Buttons\n- **Primary Red / Blue Corner Actions:**\n  - Red Corner: Solid `#ef4444` text on high-contrast dark base, or solid `#ef4444` fill with `#ffffff` text on interactive triggers; active state displays a red ambient glow.\n  - Blue Corner: Identical structure mapped to `#06b6d4`.\n- **Neutral / Tooling Buttons:** Background `#1c2433`, border 1px solid `#243044`, text `#e2e8f0`. Hover increases surface brightness to `#243044` with text `#ffffff`.\n- **Compact Segmented Switchers (e.g., Round 1-12 Selector):** Border-encapsulated strip (`#151b26`) holding compact buttons. The active round tile features `#1c2433` fill, crisp `#ffffff` text, and a 2px bottom border colored in `#f59e0b`.\n\n### 3. Fighter Corner Scorecard & Comparison Strip\n- **Header Dock:** Symmetrical split banner across the viewport top. Red corner on the left, Blue corner on the right.\n- **Center Division:** Displays neutral clock/timer (`JetBrains Mono`, 48px), judge round tallies (10-9, 9-10), and round progress bar.\n- **Data Bars:** Dual-sided horizontal bar gauges expanding outward from center to indicate landed vs. thrown punches, total kinetic damage, and ring control percentage.\n\n### 4. Chips & Badges\n- **Status Indicators:** 4px padding with `label-caps` font.\n  - Knockdown/Critical: Background `rgba(239, 68, 68, 0.15)`, text `#ef4444`, border `1px solid rgba(239, 68, 68, 0.4)`.\n  - Slip/Clean Defense: Background `rgba(6, 182, 212, 0.15)`, text `#06b6d4`, border `1px solid rgba(6, 182, 212, 0.4)`.\n  - Highlight/Point Lead: Background `rgba(245, 158, 11, 0.15)`, text `#f59e0b`, border `1px solid rgba(245, 158, 11, 0.4)`.\n\n### 5. Input Fields & Data Filters\n- **Inputs:** Dark field `#0c1017` with `#243044` border. Text `#ffffff` using `body-md`. Focus state shifts border to `#3b82f6` with a non-blurring 1px outline.\n- **Dropdowns & Popovers:** Surface `#151b26` framed with a high-contrast `#243044` boundary. Hovered rows elevate to `#1c2433`.\n\n### 6. Interactive Punch Log Table\n- **Header:** Sticky `#151b26` bar with `label-caps` muted column headers (`TIMESTAMP`, `CORNER`, `STRIKE TYPE`, `VELOCITY`, `FORCE`, `OUTCOME`).\n- **Row Architecture:** Alternate row backgrounds (`#151b26` / `#0c1017`) separated by razor lines (`#1c2433`). Monospace numbers throughout.\n- **Row Interaction:** Hover highlights the row in `#1c2433` and maps the instantaneous hit coordinate onto the linked 3D head/body model.",
+    "colorVariant": "FIDELITY",
+    "overridePrimaryColor": "#ef4444",
+    "overrideSecondaryColor": "#06b6d4",
+    "overrideTertiaryColor": "#f59e0b",
+    "overrideNeutralColor": "#0c1017",
+    "spacingScale": 2,
+    "typography": {
+      "telemetry-metric-lg": {
+        "fontFamily": "JetBrains Mono",
+        "fontSize": "32px",
+        "fontWeight": "600",
+        "lineHeight": "36px",
+        "letterSpacing": "-0.03em"
+      },
+      "body-lg": {
+        "fontFamily": "Inter",
+        "fontSize": "16px",
+        "fontWeight": "400",
+        "lineHeight": "24px"
+      },
+      "label-data": {
+        "fontFamily": "JetBrains Mono",
+        "fontSize": "12px",
+        "fontWeight": "400",
+        "lineHeight": "16px",
+        "letterSpacing": "0.02em"
+      },
+      "headline-sm": {
+        "fontFamily": "Space Grotesk",
+        "fontSize": "18px",
+        "fontWeight": "600",
+        "lineHeight": "24px",
+        "letterSpacing": "0em"
+      },
+      "display-hero-mobile": {
+        "fontFamily": "JetBrains Mono",
+        "fontSize": "32px",
+        "fontWeight": "700",
+        "lineHeight": "36px",
+        "letterSpacing": "-0.03em"
+      },
+      "headline-md": {
+        "fontFamily": "Space Grotesk",
+        "fontSize": "22px",
+        "fontWeight": "600",
+        "lineHeight": "28px",
+        "letterSpacing": "-0.01em"
+      },
+      "headline-lg": {
+        "fontFamily": "Space Grotesk",
+        "fontSize": "28px",
+        "fontWeight": "700",
+        "lineHeight": "34px",
+        "letterSpacing": "-0.02em"
+      },
+      "display-hero": {
+        "fontFamily": "JetBrains Mono",
+        "fontSize": "48px",
+        "fontWeight": "700",
+        "lineHeight": "52px",
+        "letterSpacing": "-0.04em"
+      },
+      "body-md": {
+        "fontFamily": "Inter",
+        "fontSize": "14px",
+        "fontWeight": "400",
+        "lineHeight": "20px"
+      },
+      "label-caps": {
+        "fontFamily": "JetBrains Mono",
+        "fontSize": "11px",
+        "fontWeight": "600",
+        "lineHeight": "14px",
+        "letterSpacing": "0.08em"
+      },
+      "telemetry-metric-sm": {
+        "fontFamily": "JetBrains Mono",
+        "fontSize": "14px",
+        "fontWeight": "500",
+        "lineHeight": "18px",
+        "letterSpacing": "-0.01em"
+      },
+      "body-sm": {
+        "fontFamily": "Inter",
+        "fontSize": "12px",
+        "fontWeight": "400",
+        "lineHeight": "16px"
+      },
+      "telemetry-metric-md": {
+        "fontFamily": "JetBrains Mono",
+        "fontSize": "20px",
+        "fontWeight": "500",
+        "lineHeight": "24px",
+        "letterSpacing": "-0.02em"
+      }
+    },
+    "spacing": {
+      "margin-desktop": "2rem",
+      "space-xs": "0.25rem",
+      "margin": "1rem",
+      "space-sm": "0.5rem",
+      "gutter-desktop": "1.25rem",
+      "space-lg": "1.25rem",
+      "space-xl": "2rem",
+      "gutter": "1rem",
+      "space-md": "0.75rem"
+    },
+    "headlineFontFamily": "Space Grotesk",
+    "bodyFontFamily": "Inter",
+    "labelFontFamily": "JetBrains Mono"
+  },
+  "screenInstances": [
+    {
+      "id": "1c4d8c63d7f945fba6481b5346d539e3",
+      "sourceScreen": "projects/811732486051757994/screens/1c4d8c63d7f945fba6481b5346d539e3",
+      "x": 1344,
+      "y": 1762,
+      "width": 1280,
+      "height": 2136,
+      "label": "Kinetics & Force Telemetry"
+    },
+    {
+      "id": "27cc5151c1ed4e898f42ef024eb1092b",
+      "sourceScreen": "projects/811732486051757994/screens/27cc5151c1ed4e898f42ef024eb1092b",
+      "y": 1762,
+      "width": 1280,
+      "height": 2523,
+      "label": "Spatial Heatmaps & Movement Biomechanics"
+    },
+    {
+      "id": "99ed52830ad8478c9ce86a33b4b5255a",
+      "sourceScreen": "projects/811732486051757994/screens/99ed52830ad8478c9ce86a33b4b5255a",
+      "y": 7404,
+      "width": 1280,
+      "height": 2113,
+      "label": "Round 1 vs Round 3 Force Degradation Curves"
+    },
+    {
+      "id": "assets_7e43d697dde444e48aea194f1e8bd442",
+      "width": 960,
+      "height": 540,
+      "sourceAsset": "assets/7e43d697dde444e48aea194f1e8bd442",
+      "type": "DESIGN_SYSTEM_INSTANCE"
+    },
+    {
+      "id": "b2de92ebda97473cb5219e5a57fa7c16",
+      "sourceScreen": "projects/811732486051757994/screens/b2de92ebda97473cb5219e5a57fa7c16",
+      "y": 4541,
+      "width": 1280,
+      "height": 2607,
+      "label": "Combinations Matrix & Strike Telemetry"
+    },
+    {
+      "id": "d52ae80f747648ddaff25399dee609df",
+      "sourceScreen": "projects/811732486051757994/screens/d52ae80f747648ddaff25399dee609df",
+      "x": 1024,
+      "width": 1280,
+      "height": 1506,
+      "label": "Fight Summary & Striking Telemetry"
+    }
+  ],
+  "metadata": {
+    "userRole": "OWNER"
+  }
+}

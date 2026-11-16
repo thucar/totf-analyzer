@@ -257,8 +257,8 @@ def get_series(path: str, name: str, corner: int | None = None, round_index: int
 
     Names include punishment_0, punishment_1, punishment_2, guard_up, left_guard_up,
     right_guard_up, guard_brace, guard_friction, guard_mass, guard_ladder, head_speed,
-    head_height, head_slip_lateral, fighter_distance, blade_angle, tangential_speed,
-    punch_density, and stiffness_max.
+    head_height, hips_x, hips_z, head_slip_lateral, fighter_distance, blade_angle,
+    tangential_speed, punch_density, and stiffness_max.
     """
     report = _load(path)
     if round_index is None:

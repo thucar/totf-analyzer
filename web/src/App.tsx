@@ -1,129 +1,31 @@
-import { useEffect, useState, type ReactElement } from "react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Legend,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { useEffect, useState } from "react";
 import type { FightAnalytics, GameListing, SessionRow } from "./types";
+import {
+  type ScopeSelection,
+  type ViewId,
+  clock,
+  clockWhole,
+  filenameWhen,
+  formatWhen,
+  getFighter,
+  sessionSelectOptionLabel,
+  verdictBadge,
+} from "./utils";
+import { CombinationsMatrixView } from "./views/CombinationsMatrixView";
+import { FightSummaryView } from "./views/FightSummaryView";
+import { ForceDegradationView } from "./views/ForceDegradationView";
+import { KineticsForceView } from "./views/KineticsForceView";
+import { PunchLogView } from "./views/PunchLogView";
+import { SpatialHeatmapsView } from "./views/SpatialHeatmapsView";
 
-const RED = "#e24b3b";
-const BLUE = "#3c8fdb";
-
-function clock(seconds: number): string {
-  const sign = seconds < 0 ? "−" : "";
-  const safe = Math.abs(seconds);
-  const mins = Math.floor(safe / 60);
-  const secs = safe - mins * 60;
-  return `${sign}${mins}:${secs.toFixed(1).padStart(4, "0")}`;
-}
-
-function pct(value: number | null): string {
-  return value == null ? "—" : `${(value * 100).toFixed(1)}%`;
-}
-
-function percentPoints(value: number | null | undefined): string {
-  return value == null ? "—" : `${num(value)}%`;
-}
-
-function num(value: number | null, digits = 1): string {
-  return value == null ? "—" : value.toFixed(digits);
-}
-
-function cornerColor(corner: number): "red" | "blue" {
-  return corner === 2 ? "red" : "blue";
-}
-
-function seriesPoints(seriesList: FightAnalytics["series"], name: string) {
-  const points = new Map<number, { t: number; red: number | null; blue: number | null }>();
-  for (const series of seriesList.filter((item) => item.name === name)) {
-    const key = cornerColor(series.corner ?? 0);
-    series.t.forEach((t, index) => {
-      const row = points.get(t) ?? { t, red: null, blue: null };
-      row[key] = series.y[index] ?? null;
-      points.set(t, row);
-    });
-  }
-  return [...points.values()].sort((a, b) => a.t - b.t);
-}
-
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-function sessionLabel(name: string): string {
-  return name.replace(/^session_/, "").replace(/\.zip$/, "");
-}
-
-function formatWhen(iso: string): string | null {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return null;
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  return `${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}, ${hours}:${minutes}`;
-}
-
-function filenameWhen(name: string): string | null {
-  const match = name.match(/_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})\d{2}(?:\.zip)?$/i);
-  if (!match) return null;
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
-  return `${day} ${MONTHS[month - 1]} ${match[1]}, ${match[4]}:${match[5]}`;
-}
-
-function RecordingTitle({
-  name,
-  bout,
-  created,
-  red,
-  blue,
-  winner,
-  local,
-  result,
-  notes = [],
-}: {
-  name: string;
-  bout?: string | null;
-  created?: string | null;
-  red?: string | null;
-  blue?: string | null;
-  winner?: "red" | "blue" | null;
-  local?: "red" | "blue" | null;
-  result?: string | null;
-  notes?: string[];
-}) {
-  const when = (created && formatWhen(created)) || filenameWhen(name);
-  const subject = local ?? winner ?? (red ? "red" : blue ? "blue" : null);
-  const lead = subject === "blue" ? blue : subject === "red" ? red : null;
-  const other = subject === "blue" ? red : subject === "red" ? blue : null;
-  const tone = result?.startsWith("W") ? "win" : result?.startsWith("L") ? "loss" : result ? "draw" : "";
-  const caption = [lead || other ? bout : null, when, ...notes].filter(Boolean).join(" · ");
-  return (
-    <>
-      {lead || other ? (
-        <span className="card">
-          {lead ? <span className="fighter">{lead}</span> : null}
-          {result ? <span className={`badge ${tone}`}>{result}</span> : null}
-          {other ? <span className="fighter">{other}</span> : null}
-        </span>
-      ) : bout ? (
-        <span className="bout">{bout}</span>
-      ) : (
-        sessionLabel(name)
-      )}
-      {caption ? <small>{caption}</small> : null}
-    </>
-  );
-}
-
-function formatPath(path: string): string {
-  return path.replaceAll("/", "/\u200b");
-}
+const NAV_ITEMS: { id: ViewId; label: string; icon: string }[] = [
+  { id: "fight-summary", label: "Fight Summary", icon: "analytics" },
+  { id: "spatial-heatmaps", label: "Spatial Heatmaps", icon: "radar" },
+  { id: "strike-telemetry", label: "Combinations Matrix", icon: "hub" },
+  { id: "kinetics-force", label: "Kinetics & Force", icon: "fitness_center" },
+  { id: "force-degradation", label: "Force Degradation", icon: "ecg_heart" },
+  { id: "punch-log", label: "Punch Log", icon: "list_alt" },
+];
 
 async function readError(response: Response): Promise<string> {
   const text = await response.text();
@@ -131,17 +33,63 @@ async function readError(response: Response): Promise<string> {
     const body = JSON.parse(text) as { detail?: unknown };
     if (typeof body.detail === "string") return body.detail;
   } catch {
-    /* response was not JSON */
+    /* non-json error */
   }
   return text || "Request failed.";
+}
+
+function formatPath(path: string): string {
+  return path.replaceAll("/", "/\u200b");
+}
+
+function RecordingCardRow({
+  row,
+  notes = [],
+}: {
+  row: SessionRow;
+  notes?: string[];
+}) {
+  const when = formatWhen(row.created) || filenameWhen(row.name);
+  const subject = row.local ?? row.winner ?? (row.red ? "red" : row.blue ? "blue" : null);
+  const lead = subject === "blue" ? row.blue : subject === "red" ? row.red : null;
+  const other = subject === "blue" ? row.red : subject === "red" ? row.blue : null;
+  const tone = row.result?.startsWith("W")
+    ? "bg-secondary/20 text-secondary"
+    : row.result?.startsWith("L")
+      ? "bg-error-container text-error"
+      : "bg-surface-container-highest text-on-surface";
+
+  const caption = [row.bout, when, ...notes].filter(Boolean).join(" · ");
+
+  return (
+    <div className="flex flex-col gap-0.5 w-full text-left">
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span className="font-headline-sm text-body-md font-semibold text-on-surface">
+          {lead && other ? `${lead} vs ${other}` : lead ?? other ?? row.name}
+        </span>
+        {row.result && (
+          <span className={`px-1.5 py-0.5 rounded font-label-caps text-[10px] font-bold ${tone}`}>
+            {row.result}
+          </span>
+        )}
+      </div>
+      {caption && <span className="font-label-data text-[11px] text-outline">{caption}</span>}
+    </div>
+  );
 }
 
 export function App() {
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [report, setReport] = useState<FightAnalytics | null>(null);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reportToken, setReportToken] = useState(0);
+
+  const [activeView, setActiveView] = useState<ViewId>("fight-summary");
+  const [scope, setScope] = useState<ScopeSelection>("all");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   const [importOpen, setImportOpen] = useState(false);
   const [gameListing, setGameListing] = useState<GameListing | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
@@ -149,7 +97,7 @@ export function App() {
 
   useEffect(() => {
     fetch("/api/sessions")
-      .then((response) => response.json())
+      .then((res) => res.json())
       .then((rows: SessionRow[]) => {
         setSessions(rows);
         if (rows[0]) setSelected(rows[0].name);
@@ -160,13 +108,18 @@ export function App() {
   useEffect(() => {
     if (!selected) return;
     setError(null);
+    setLoading(true);
     fetch(`/api/sessions/${encodeURIComponent(selected)}/report`)
-      .then(async (response) => {
-        if (!response.ok) throw new Error(await response.text());
-        return response.json();
+      .then(async (res) => {
+        if (!res.ok) throw new Error(await readError(res));
+        return res.json();
       })
-      .then((body: FightAnalytics) => setReport(body))
-      .catch((exc: Error) => setError(exc.message));
+      .then((body: FightAnalytics) => {
+        setReport(body);
+        setScope("all");
+      })
+      .catch((exc: Error) => setError(exc.message))
+      .finally(() => setLoading(false));
   }, [selected, reportToken]);
 
   useEffect(() => {
@@ -183,9 +136,9 @@ export function App() {
     setImportError(null);
     setGameListing(null);
     fetch("/api/game-recordings")
-      .then(async (response) => {
-        if (!response.ok) throw new Error(await readError(response));
-        return response.json();
+      .then(async (res) => {
+        if (!res.ok) throw new Error(await readError(res));
+        return res.json();
       })
       .then((body: GameListing) => setGameListing(body))
       .catch((exc: Error) => setImportError(exc.message));
@@ -194,20 +147,20 @@ export function App() {
   async function onImport(name: string) {
     setImporting(name);
     setImportError(null);
-    const response = await fetch("/api/sessions/import", {
+    const res = await fetch("/api/sessions/import", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name }),
     });
-    if (!response.ok) {
-      setImportError(await readError(response));
+    if (!res.ok) {
+      setImportError(await readError(res));
       setImporting(null);
       return;
     }
     const listed = await fetch("/api/sessions");
     if (listed.ok) setSessions(await listed.json());
     setSelected(name);
-    setReportToken((token) => token + 1);
+    setReportToken((t) => t + 1);
     setImporting(null);
     setImportOpen(false);
   }
@@ -216,746 +169,441 @@ export function App() {
     const form = new FormData();
     form.append("file", file);
     setError(null);
-    const response = await fetch("/api/sessions/upload", { method: "POST", body: form });
-    if (!response.ok) {
-      setError(await response.text());
+    setLoading(true);
+    const res = await fetch("/api/sessions/upload", { method: "POST", body: form });
+    setLoading(false);
+    if (!res.ok) {
+      setError(await readError(res));
       return;
     }
-    setReport(await response.json());
-    setSelected(file.name);
+    const uploaded: FightAnalytics = await res.json();
+    setReport(uploaded);
+    setScope("all");
   }
 
+  function exportJson() {
+    if (!report) return;
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${report.session.name || "totf_report"}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  const red = report ? getFighter(report, "red") : undefined;
+  const blue = report ? getFighter(report, "blue") : undefined;
+  const completedRounds = report ? report.rounds.filter((r) => r.completed) : [];
+  const hz = report?.session.fixed_timestep ? Math.round(1 / report.session.fixed_timestep) : 120;
+
   return (
-    <div className="shell">
-      <aside className="rail">
-        <h1 className="wordmark">
-          TOTF
-          <span>ANALYZER</span>
-        </h1>
-        <label>Recordings</label>
-        <ul className="sessions">
-          {sessions.map((session) => (
-            <li key={session.name}>
-              <button
-                className={session.name === selected ? "active" : ""}
-                onClick={() => setSelected(session.name)}
-              >
-                <RecordingTitle
-                  name={session.name}
-                  bout={session.bout}
-                  created={session.created}
-                  red={session.red}
-                  blue={session.blue}
-                  winner={session.winner}
-                  local={session.local}
-                  result={session.result}
-                />
-              </button>
-            </li>
-          ))}
-        </ul>
-        <div className="rail-actions">
-          <button type="button" className="upload" onClick={openImport}>
-            Import recording
+    <div className="min-h-screen bg-surface text-on-surface">
+      {/* LEFT TELEMETRY RAIL */}
+      <aside
+        className={`fixed left-0 top-0 h-full w-72 bg-surface-container-lowest z-50 flex flex-col border-r border-surface-container-high transition-transform duration-200 ${
+          mobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        }`}
+      >
+        <div className="p-space-lg bg-surface-container-low flex items-center justify-between">
+          <div className="flex items-center gap-space-sm">
+            <div className="w-8 h-8 bg-primary-container text-on-primary-container rounded flex items-center justify-center font-display-hero text-telemetry-metric-sm font-bold">
+              T
+            </div>
+            <div className="flex flex-col">
+              <span className="font-headline-sm text-headline-sm uppercase tracking-tight text-on-surface">
+                TOTF ANALYZER
+              </span>
+              <span className="font-label-caps text-label-caps text-secondary tracking-widest">
+                VR COMBAT TELEMETRY
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(false)}
+            className="lg:hidden text-outline hover:text-on-surface"
+            aria-label="Close navigation"
+          >
+            <span className="material-symbols-outlined">close</span>
           </button>
-          <label className="upload">
-            Open a zip
-            <input
-              type="file"
-              accept=".zip"
-              hidden
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) void onUpload(file);
-              }}
-            />
+        </div>
+
+        {/* Bout Selector */}
+        <div className="px-space-md py-space-sm bg-surface-container-lowest border-b border-surface-container">
+          <label
+            htmlFor="bout-select"
+            className="font-label-caps text-label-caps text-outline uppercase px-space-xs mb-space-xs block"
+          >
+            Select Fight Bout ({sessions.length})
           </label>
-        </div>
-      </aside>
-      {importOpen && (
-        <div className="import-panel" role="dialog" aria-label="Import recording">
-          <div className="import-head">
-            <div>
-              <h2>Import recording</h2>
-              <p className="import-path">{formatPath(gameListing?.directory ?? "Game SessionRecordings folder")}</p>
-            </div>
-            <button type="button" className="upload" onClick={() => setImportOpen(false)}>
-              Close
-            </button>
-          </div>
-          {importError && <p className="error">{importError}</p>}
-          {!gameListing && !importError && <p className="empty">Looking for game recordings…</p>}
-          {gameListing && !gameListing.available && (
-            <p className="empty">The game recordings folder was not found.</p>
-          )}
-          {gameListing?.available && gameListing.recordings.length === 0 && (
-            <p className="empty">No session recordings in that folder.</p>
-          )}
-          <ul className="import-list">
-            {gameListing?.recordings.map((recording) => (
-              <li key={recording.name}>
-                <button type="button" disabled={importing !== null} onClick={() => void onImport(recording.name)}>
-                  <RecordingTitle
-                    name={recording.name}
-                    bout={recording.bout}
-                    created={recording.created}
-                    red={recording.red}
-                    blue={recording.blue}
-                    winner={recording.winner}
-                    local={recording.local}
-                    result={recording.result}
-                    notes={[recording.imported ? "in library" : "", importing === recording.name ? "importing…" : ""]}
-                  />
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      <main className="stage">
-        {error && <p className="error">{error}</p>}
-        {!report && !error && <p className="empty">Select a session recording.</p>}
-        {report && <FightView report={report} />}
-      </main>
-    </div>
-  );
-}
-
-function formatDetail(detail: Record<string, string | number | null>): string {
-  return Object.entries(detail)
-    .filter(([, value]) => value != null && value !== "")
-    .map(([key, value]) => `${key.replaceAll("_", " ")} ${value}`)
-    .join(" · ");
-}
-
-function fighterMeta(fighter: FightAnalytics["fighters"][number] | undefined, color: string): string {
-  const bits = [color, fighter?.stance ?? "stance n/a"];
-  if (fighter?.height_m) bits.push(`${fighter.height_m.toFixed(2)} m`);
-  if (fighter?.is_local_player) bits.push("local");
-  if (fighter?.ai_archetype) bits.push(fighter.ai_archetype);
-  if (fighter?.ai_difficulty) bits.push(fighter.ai_difficulty);
-  return bits.join(" · ");
-}
-
-function FightView({ report }: { report: FightAnalytics }) {
-  const red = report.fighters.find((fighter) => fighter.color === "red");
-  const blue = report.fighters.find((fighter) => fighter.color === "blue");
-  const completedRounds = report.rounds.filter((round) => round.completed);
-  const fightKey = report.session.source;
-  const [selection, setSelection] = useState({ fightKey, index: completedRounds[0]?.index ?? 0 });
-  if (selection.fightKey !== fightKey) {
-    setSelection({ fightKey, index: completedRounds[0]?.index ?? 0 });
-  }
-  const roundIndex = selection.fightKey === fightKey ? selection.index : (completedRounds[0]?.index ?? 0);
-  const selected = completedRounds.find((round) => round.index === roundIndex) ?? completedRounds[0];
-
-  return (
-    <>
-      <section className="scoreboard">
-        <div>
-          <h2 className="fighter-name red">{red?.name ?? "Red"}</h2>
-          <p className="meta">{fighterMeta(red, "red")}</p>
-        </div>
-        <div className="center-score">
-          <div className="method">{report.session.method.replaceAll("_", " ")}</div>
-          <strong>
-            {report.session.red_total_score ?? "–"}–{report.session.blue_total_score ?? "–"}
-          </strong>
-          <div className="meta">
-            {report.session.venue ?? "venue n/a"} · {clock(report.session.duration_sec)}
+          <div className="relative">
+            <select
+              id="bout-select"
+              value={selected ?? ""}
+              onChange={(e) => setSelected(e.target.value)}
+              className="w-full bg-surface-container-high text-on-surface font-label-data text-label-data px-space-sm py-2 pr-7 rounded appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-secondary truncate"
+            >
+              {sessions.length === 0 && <option value="">No recordings loaded</option>}
+              {sessions.map((s) => (
+                <option key={s.name} value={s.name}>
+                  {sessionSelectOptionLabel(s)}
+                </option>
+              ))}
+            </select>
+            <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-outline pointer-events-none text-[16px]">
+              expand_more
+            </span>
           </div>
         </div>
-        <div>
-          <h2 className="fighter-name blue">{blue?.name ?? "Blue"}</h2>
-          <p className="meta right">{fighterMeta(blue, "blue")}</p>
+
+        {/* Analysis Views Navigation */}
+        <div className="px-space-lg pt-space-md pb-space-xs">
+          <span className="font-label-caps text-label-caps text-outline uppercase tracking-wider">
+            Analysis Views
+          </span>
         </div>
-      </section>
-
-      {completedRounds.length > 0 && (
-        <table className="round-picker">
-          <thead>
-            <tr>
-              <th>Round</th>
-              <th>Time</th>
-              <th>Red score</th>
-              <th>Blue score</th>
-              <th>Red hits</th>
-              <th>Blue hits</th>
-              <th>Red thrown</th>
-              <th>Blue thrown</th>
-            </tr>
-          </thead>
-          <tbody>
-            {completedRounds.map((round) => {
-              const redOff = round.offense.find((item) => item.corner === red?.corner);
-              const blueOff = round.offense.find((item) => item.corner === blue?.corner);
-              const active = round.index === selected?.index;
-              return (
-                <tr
-                  key={round.index}
-                  className={active ? "selected" : undefined}
-                  aria-selected={active}
-                  tabIndex={0}
-                  onClick={() => setSelection({ fightKey, index: round.index })}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      setSelection({ fightKey, index: round.index });
-                    }
-                  }}
-                >
-                  <td>{round.index + 1}</td>
-                  <td className="num">{round.duration_sec == null ? "—" : clock(round.duration_sec)}</td>
-                  <td className="num">{round.red.score}</td>
-                  <td className="num">{round.blue.score}</td>
-                  <td className="num">{round.red.hits}</td>
-                  <td className="num">{round.blue.hits}</td>
-                  <td className="num">{redOff?.thrown ?? "—"}</td>
-                  <td className="num">{blueOff?.thrown ?? "—"}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      )}
-
-      <ComboSection title="Combinations" offense={report.offense} defense={report.defense} />
-
-      {selected && <RoundSection key={selected.index} report={report} round={selected} />}
-
-      <details>
-        <summary>Measurement notes</summary>
-        {report.decode_status.map((note) => (
-          <p key={note.field}>
-            <span className="conf">{note.confidence}</span> {note.field} — {note.note}
-          </p>
-        ))}
-      </details>
-    </>
-  );
-}
-
-function roundEnding(round: FightAnalytics["rounds"][number]): string | null {
-  if (round.red.knocked_out) return "Red KO";
-  if (round.blue.knocked_out) return "Blue KO";
-  if (round.red.technically_knocked_out) return "Red TKO";
-  if (round.blue.technically_knocked_out) return "Blue TKO";
-  return null;
-}
-
-const DEPTHS = ["1", "2", "3", "4", "5+"];
-const VULNERABILITY = [
-  ["while_throwing", "While throwing"],
-  ["post_punch_recovery", "After punch"],
-  ["neutral_guard", "Neutral guard"],
-] as const;
-
-type ComboPattern = FightAnalytics["offense"][number]["combinations"]["patterns"][number];
-
-function patternNames(red: ComboPattern[], blue: ComboPattern[]): string[] {
-  const counts = new Map<string, number>();
-  for (const row of [...red, ...blue]) {
-    counts.set(row.pattern, Math.max(counts.get(row.pattern) ?? 0, row.count));
-  }
-  return [...counts.keys()].sort((left, right) => (counts.get(right) ?? 0) - (counts.get(left) ?? 0) || left.localeCompare(right));
-}
-
-function ComboSection({
-  title,
-  offense,
-  defense,
-  heading = "h2",
-}: {
-  title: string;
-  offense: FightAnalytics["offense"];
-  defense: FightAnalytics["defense"];
-  heading?: "h2" | "h3";
-}) {
-  const redOff = offense.find((item) => cornerColor(item.corner) === "red")?.combinations;
-  const blueOff = offense.find((item) => cornerColor(item.corner) === "blue")?.combinations;
-  const redVuln = defense.find((item) => cornerColor(item.corner) === "red")?.vulnerability;
-  const blueVuln = defense.find((item) => cornerColor(item.corner) === "blue")?.vulnerability;
-  const Heading = heading;
-  const patterns = patternNames(redOff?.patterns ?? [], blueOff?.patterns ?? []);
-  return (
-    <section className="combo-block">
-      <Heading className={heading === "h3" ? "round-sub" : undefined}>{title}</Heading>
-      <p className="meta">Average punishment is the punishment-meter step on landed punches, not official damage.</p>
-      <div className="combo-tables">
-        <table>
-          <thead>
-            <tr>
-              <th>Measure</th>
-              <th>Red</th>
-              <th>Blue</th>
-            </tr>
-          </thead>
-          <tbody>
-            <Row label="Combinations" red={redOff?.combo_count ?? null} blue={blueOff?.combo_count ?? null} />
-            <Row label="Mean length" red={num(redOff?.mean_combo_length ?? null, 2)} blue={num(blueOff?.mean_combo_length ?? null, 2)} />
-            <Row label="Longest" red={redOff?.max_combo_length ?? null} blue={blueOff?.max_combo_length ?? null} />
-            <Row label="Single shots" red={percentPoints(redOff?.single_shot_percent)} blue={percentPoints(blueOff?.single_shot_percent)} />
-            <Row label="Alternating hands" red={percentPoints(redOff?.alternating_hand_percent)} blue={percentPoints(blueOff?.alternating_hand_percent)} />
-          </tbody>
-        </table>
-        <table>
-          <thead>
-            <tr>
-              <th>Depth</th>
-              <th>Red thrown</th>
-              <th>Red accuracy</th>
-              <th>Red speed</th>
-              <th>Red countered</th>
-              <th>Blue thrown</th>
-              <th>Blue accuracy</th>
-              <th>Blue speed</th>
-              <th>Blue countered</th>
-            </tr>
-          </thead>
-          <tbody>
-            {DEPTHS.map((depth) => {
-              const red = redOff?.by_depth.find((row) => row.depth === depth);
-              const blue = blueOff?.by_depth.find((row) => row.depth === depth);
-              return (
-                <tr key={depth}>
-                  <td>{depth}</td>
-                  <td className="num">{red?.thrown ?? 0}</td>
-                  <td className="num">{pct(red?.accuracy ?? null)}</td>
-                  <td className="num">{num(red?.mean_speed ?? null, 2)}</td>
-                  <td className="num">{pct(red?.countered_rate ?? null)}</td>
-                  <td className="num">{blue?.thrown ?? 0}</td>
-                  <td className="num">{pct(blue?.accuracy ?? null)}</td>
-                  <td className="num">{num(blue?.mean_speed ?? null, 2)}</td>
-                  <td className="num">{pct(blue?.countered_rate ?? null)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        <table>
-          <thead>
-            <tr>
-              <th>Window</th>
-              <th>Red hit share</th>
-              <th>Red time share</th>
-              <th>Red risk</th>
-              <th>Red opponent accuracy</th>
-              <th>Blue hit share</th>
-              <th>Blue time share</th>
-              <th>Blue risk</th>
-              <th>Blue opponent accuracy</th>
-            </tr>
-          </thead>
-          <tbody>
-            {VULNERABILITY.map(([key, label]) => {
-              const red = redVuln?.[key];
-              const blue = blueVuln?.[key];
-              return (
-                <tr key={key}>
-                  <td>{label}</td>
-                  <td className="num">{percentPoints(red?.hit_share)}</td>
-                  <td className="num">{percentPoints(red?.time_share)}</td>
-                  <td className="num">{num(red?.risk_ratio ?? null, 2)}</td>
-                  <td className="num">{pct(red?.opponent_accuracy ?? null)}</td>
-                  <td className="num">{percentPoints(blue?.hit_share)}</td>
-                  <td className="num">{percentPoints(blue?.time_share)}</td>
-                  <td className="num">{num(blue?.risk_ratio ?? null, 2)}</td>
-                  <td className="num">{pct(blue?.opponent_accuracy ?? null)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        <div className="log">
-          <table>
-            <thead>
-              <tr>
-                <th>Pattern</th>
-                <th>Red times</th>
-                <th>Red accuracy</th>
-                <th>Red punishment</th>
-                <th>Red per landed</th>
-                <th>Blue times</th>
-                <th>Blue accuracy</th>
-                <th>Blue punishment</th>
-                <th>Blue per landed</th>
-              </tr>
-            </thead>
-            <tbody>
-              {patterns.length === 0 ? (
-                <tr>
-                  <td>None</td>
-                  <td className="num">—</td>
-                  <td className="num">—</td>
-                  <td className="num">—</td>
-                  <td className="num">—</td>
-                  <td className="num">—</td>
-                  <td className="num">—</td>
-                  <td className="num">—</td>
-                  <td className="num">—</td>
-                </tr>
-              ) : (
-                patterns.map((name) => {
-                  const red = redOff?.patterns.find((row) => row.pattern === name);
-                  const blue = blueOff?.patterns.find((row) => row.pattern === name);
-                  return (
-                    <tr key={name}>
-                      <td>{name.replaceAll("_", " ").replaceAll("-", " · ")}</td>
-                      <td className="num">{red?.count ?? "—"}</td>
-                      <td className="num">{red ? pct(red.accuracy) : "—"}</td>
-                      <td className="num">{red ? num(red.mean_punishment_delta, 2) : "—"}</td>
-                      <td className="num">{red ? num(red.mean_punishment_delta_landed, 2) : "—"}</td>
-                      <td className="num">{blue?.count ?? "—"}</td>
-                      <td className="num">{blue ? pct(blue.accuracy) : "—"}</td>
-                      <td className="num">{blue ? num(blue.mean_punishment_delta, 2) : "—"}</td>
-                      <td className="num">{blue ? num(blue.mean_punishment_delta_landed, 2) : "—"}</td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function RoundSection({
-  report,
-  round,
-}: {
-  report: FightAnalytics;
-  round: FightAnalytics["rounds"][number];
-}) {
-  const [momentType, setMomentType] = useState("all");
-  const [cornerFilter, setCornerFilter] = useState<number | "both">("both");
-  const red = report.fighters.find((fighter) => fighter.color === "red");
-  const blue = report.fighters.find((fighter) => fighter.color === "blue");
-  const redOff = round.offense.find((item) => item.corner === red?.corner);
-  const blueOff = round.offense.find((item) => item.corner === blue?.corner);
-  const redDef = round.defense.find((item) => item.corner === red?.corner);
-  const blueDef = round.defense.find((item) => item.corner === blue?.corner);
-  const redGuard = redDef?.guard_discipline;
-  const blueGuard = blueDef?.guard_discipline;
-  const redFoot = redDef?.footwork;
-  const blueFoot = blueDef?.footwork;
-  const redHead = redDef?.head_movement;
-  const blueHead = blueDef?.head_movement;
-  const ending = roundEnding(round);
-  const hands = handChart(round.offense);
-  const punishment = seriesPoints(round.series, "punishment_0");
-  const guard = seriesPoints(round.series, "guard_up").map((point) => ({
-    ...point,
-    red: point.red == null ? null : point.red * 100,
-    blue: point.blue == null ? null : point.blue * 100,
-  }));
-  const head = seriesPoints(round.series, "head_speed");
-  const density = seriesPoints(round.series, "punch_density");
-  const momentTypes = ["all", ...new Set(round.key_moments.map((moment) => moment.type))];
-  const moments = round.key_moments.filter((moment) => momentType === "all" || moment.type === momentType);
-  const punches = round.offense
-    .filter((offense) => cornerFilter === "both" || offense.corner === cornerFilter)
-    .flatMap((offense) => offense.punches.map((punch) => ({ ...punch, corner: offense.corner })));
-
-  return (
-    <section className="round">
-      <header className="round-head">
-        <h2>Round {round.index + 1}</h2>
-        <strong>
-          {round.red.score}–{round.blue.score}
-        </strong>
-        {round.duration_sec != null && <span className="meta">{clock(round.duration_sec)}</span>}
-        {ending && <span className="method">{ending}</span>}
-      </header>
-      {round.offense.length === 0 ? (
-        <p className="empty">This round has a scorecard, and the round clock was not found in the recording.</p>
-      ) : (
-        <>
-          <table>
-            <thead>
-              <tr>
-                <th>Measure</th>
-                <th>Red</th>
-                <th>Blue</th>
-              </tr>
-            </thead>
-            <tbody>
-              <Row label="Hits taken" red={round.red.hits} blue={round.blue.hits} />
-              <Row label="Thrown records" red={redOff?.thrown} blue={blueOff?.thrown} />
-              <Row label="With speed data" red={redOff?.kinematic_thrown} blue={blueOff?.kinematic_thrown} />
-              <Row label="Landed" red={redOff?.landed} blue={blueOff?.landed} />
-              <Row label="Accuracy" red={pct(redOff?.accuracy ?? null)} blue={pct(blueOff?.accuracy ?? null)} />
-              <Row label="Punches / min" red={num(redOff?.punches_per_minute ?? null)} blue={num(blueOff?.punches_per_minute ?? null)} />
-              <Row label="Mean speed" red={num(redOff?.velocity.mean_thrown ?? null, 2)} blue={num(blueOff?.velocity.mean_thrown ?? null, 2)} />
-              <Row label="Mean speed, landed" red={num(redOff?.velocity.mean_landed ?? null, 2)} blue={num(blueOff?.velocity.mean_landed ?? null, 2)} />
-              <Row label="Official damage taken" red={round.red.received_damage} blue={round.blue.received_damage} />
-              <Row label="Stuns" red={round.red.stuns} blue={round.blue.stuns} />
-              <Row label="Knockdowns" red={round.red.all_knockdowns} blue={round.blue.all_knockdowns} />
-              <Row label="Guard up" red={num(redDef?.guard_up_percent ?? null)} blue={num(blueDef?.guard_up_percent ?? null)} suffix="%" />
-              <Row label="Guard up under fire" red={num(redDef?.guard_up_percent_under_fire ?? null)} blue={num(blueDef?.guard_up_percent_under_fire ?? null)} suffix="%" />
-              <Row label="Left glove up" red={num(redGuard?.left_guard_up_percent ?? null)} blue={num(blueGuard?.left_guard_up_percent ?? null)} suffix="%" />
-              <Row label="Right glove up" red={num(redGuard?.right_guard_up_percent ?? null)} blue={num(blueGuard?.right_guard_up_percent ?? null)} suffix="%" />
-              <Row label="Either glove up" red={num(redGuard?.either_guard_up_percent ?? null)} blue={num(blueGuard?.either_guard_up_percent ?? null)} suffix="%" />
-              <Row label="Off-hand kept" red={num(redGuard?.offhand_guard_kept_percent ?? null)} blue={num(blueGuard?.offhand_guard_kept_percent ?? null)} suffix="%" />
-              <Row label="Off-hand kept, throwing left" red={num(redGuard?.offhand_guard_kept_percent_throwing_left ?? null)} blue={num(blueGuard?.offhand_guard_kept_percent_throwing_left ?? null)} suffix="%" />
-              <Row label="Off-hand kept, throwing right" red={num(redGuard?.offhand_guard_kept_percent_throwing_right ?? null)} blue={num(blueGuard?.offhand_guard_kept_percent_throwing_right ?? null)} suffix="%" />
-              <Row label="Hand returned" red={num(redGuard?.retraction_returned_percent ?? null)} blue={num(blueGuard?.retraction_returned_percent ?? null)} suffix="%" />
-              <Row label="Return time, median" red={num(redGuard?.retraction_time_ms.median ?? null, 0)} blue={num(blueGuard?.retraction_time_ms.median ?? null, 0)} suffix=" ms" />
-              <Row label="Return droop, median" red={num(redGuard?.retraction_droop_m.median ?? null, 2)} blue={num(blueGuard?.retraction_droop_m.median ?? null, 2)} suffix=" m" />
-              <Row label="Under fire" red={num(redDef?.under_fire_seconds ?? null)} blue={num(blueDef?.under_fire_seconds ?? null)} suffix=" s" />
-              <Row label="Head speed" red={num(redDef?.head_mean_speed ?? null, 2)} blue={num(blueDef?.head_mean_speed ?? null, 2)} />
-              <Row label="Head speed under fire" red={num(redDef?.head_mean_speed_under_fire ?? null, 2)} blue={num(blueDef?.head_mean_speed_under_fire ?? null, 2)} />
-              <Row label="Head height range" red={num(redDef?.head_vertical_range ?? null, 2)} blue={num(blueDef?.head_vertical_range ?? null, 2)} suffix=" m" />
-              <Row label="Off centerline" red={num(redHead?.off_centerline_percent ?? null)} blue={num(blueHead?.off_centerline_percent ?? null)} suffix="%" />
-              <Row label="Off centerline under fire" red={num(redHead?.off_centerline_under_fire_percent ?? null)} blue={num(blueHead?.off_centerline_under_fire_percent ?? null)} suffix="%" />
-              <Row label="Off centerline while punching" red={num(redHead?.off_centerline_while_punching_percent ?? null)} blue={num(blueHead?.off_centerline_while_punching_percent ?? null)} suffix="%" />
-              <Row label="Lateral slip, median" red={num(redHead?.head_lateral_slip_m?.median ?? null, 2)} blue={num(blueHead?.head_lateral_slip_m?.median ?? null, 2)} suffix=" m" />
-              <Row label="Lateral slip, p90" red={num(redHead?.head_lateral_slip_m?.p90 ?? null, 2)} blue={num(blueHead?.head_lateral_slip_m?.p90 ?? null, 2)} suffix=" m" />
-              <Row label="Head height IQR" red={num(redHead?.head_height_iqr_m ?? null, 2)} blue={num(blueHead?.head_height_iqr_m ?? null, 2)} suffix=" m" />
-              <Row label="Head height span" red={num(redHead?.p05_p95_span_m ?? null, 2)} blue={num(blueHead?.p05_p95_span_m ?? null, 2)} suffix=" m" />
-              <Row label="Pelvis drop IQR" red={num(redHead?.pelvis_drop_iqr_m ?? null, 2)} blue={num(blueHead?.pelvis_drop_iqr_m ?? null, 2)} suffix=" m" />
-              <Row label="Trunk bend IQR" red={num(redHead?.trunk_bend_iqr_m ?? null, 2)} blue={num(blueHead?.trunk_bend_iqr_m ?? null, 2)} suffix=" m" />
-              <Row label="Ducks" red={redHead?.duck_count ?? null} blue={blueHead?.duck_count ?? null} />
-              <Row label="Bob and weave" red={redHead?.bob_and_weave_count ?? null} blue={blueHead?.bob_and_weave_count ?? null} />
-              <Row label="Radial distance" red={num(redFoot?.radial_distance_m ?? null, 1)} blue={num(blueFoot?.radial_distance_m ?? null, 1)} suffix=" m" />
-              <Row label="Lateral distance" red={num(redFoot?.tangential_distance_m ?? null, 1)} blue={num(blueFoot?.tangential_distance_m ?? null, 1)} suffix=" m" />
-              <Row label="Lateral share" red={pct(redFoot?.tangential_share ?? null)} blue={pct(blueFoot?.tangential_share ?? null)} />
-              <Row label="Clockwise" red={num(redFoot?.clockwise_distance_m ?? null, 1)} blue={num(blueFoot?.clockwise_distance_m ?? null, 1)} suffix=" m" />
-              <Row label="Counterclockwise" red={num(redFoot?.counterclockwise_distance_m ?? null, 1)} blue={num(blueFoot?.counterclockwise_distance_m ?? null, 1)} suffix=" m" />
-              <Row label="Angle cuts" red={redFoot?.angle_cut_count ?? null} blue={blueFoot?.angle_cut_count ?? null} />
-              <Row label="Entry angle" red={num(redFoot?.attack_entry_angle_deg ?? null, 1)} blue={num(blueFoot?.attack_entry_angle_deg ?? null, 1)} suffix="°" />
-              <Row label="Exit angle" red={num(redFoot?.post_combo_exit_angle_deg ?? null, 1)} blue={num(blueFoot?.post_combo_exit_angle_deg ?? null, 1)} suffix="°" />
-              <Row label="Range, mean" red={num(redFoot?.fighter_distance_m.mean ?? null, 2)} blue={num(blueFoot?.fighter_distance_m.mean ?? null, 2)} suffix=" m" />
-              <Row label="Clinch range" red={num(redFoot?.clinch_range_percent ?? null)} blue={num(blueFoot?.clinch_range_percent ?? null)} suffix="%" />
-              <Row label="Pocket range" red={num(redFoot?.pocket_range_percent ?? null)} blue={num(blueFoot?.pocket_range_percent ?? null)} suffix="%" />
-              <Row label="Outside range" red={num(redFoot?.outside_range_percent ?? null)} blue={num(blueFoot?.outside_range_percent ?? null)} suffix="%" />
-              <Row label="Shoulder blade" red={num(redFoot?.shoulder_blade_angle_deg ?? null, 1)} blue={num(blueFoot?.shoulder_blade_angle_deg ?? null, 1)} suffix="°" />
-              <Row label="Foot blade" red={num(redFoot?.foot_blade_angle_deg ?? null, 1)} blue={num(blueFoot?.foot_blade_angle_deg ?? null, 1)} suffix="°" />
-              <Row label="Square stance" red={num(redFoot?.square_stance_percent ?? null)} blue={num(blueFoot?.square_stance_percent ?? null)} suffix="%" />
-              <Row label="Lead left" red={num(redFoot?.lead_left_percent ?? null)} blue={num(blueFoot?.lead_left_percent ?? null)} suffix="%" />
-              <Row label="Square while punching" red={num(redFoot?.square_while_punching_percent ?? null)} blue={num(blueFoot?.square_while_punching_percent ?? null)} suffix="%" />
-            </tbody>
-          </table>
-
-          <ComboSection title="Combinations" offense={round.offense} defense={round.defense} heading="h3" />
-
-          <div className="charts">
-            <div className="chart-block">
-              <h3>Punches by hand</h3>
-              <ChartFrame>
-                <BarChart data={hands}>
-                  <CartesianGrid stroke="#34373e" vertical={false} />
-                  <XAxis dataKey="name" stroke="#9b9488" interval={0} />
-                  <YAxis stroke="#9b9488" />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="thrown" fill="#9b9488" />
-                  <Bar dataKey="landed" fill="#e0a23a" />
-                </BarChart>
-              </ChartFrame>
-            </div>
-            <div className="chart-block">
-              <h3>Punch density</h3>
-              <ChartFrame>
-                <LineChart data={density}>
-                  <CartesianGrid stroke="#34373e" vertical={false} />
-                  <XAxis dataKey="t" stroke="#9b9488" tickFormatter={(value) => clock(Number(value))} />
-                  <YAxis stroke="#9b9488" />
-                  <Tooltip labelFormatter={(value) => clock(Number(value))} />
-                  <Legend />
-                  <Line dataKey="red" name="red" stroke={RED} dot={false} strokeWidth={1.6} />
-                  <Line dataKey="blue" name="blue" stroke={BLUE} dot={false} strokeWidth={1.6} />
-                </LineChart>
-              </ChartFrame>
-            </div>
-            <div className="chart-block">
-              <h3>Punishment meter 0</h3>
-              <ChartFrame>
-                <LineChart data={punishment}>
-                  <CartesianGrid stroke="#34373e" vertical={false} />
-                  <XAxis dataKey="t" stroke="#9b9488" tickFormatter={(value) => clock(Number(value))} />
-                  <YAxis stroke="#9b9488" />
-                  <Tooltip labelFormatter={(value) => clock(Number(value))} />
-                  <Legend />
-                  <Line dataKey="red" name="red" stroke={RED} dot={false} strokeWidth={1.6} />
-                  <Line dataKey="blue" name="blue" stroke={BLUE} dot={false} strokeWidth={1.6} />
-                </LineChart>
-              </ChartFrame>
-            </div>
-            <div className="chart-block">
-              <h3>Guard up</h3>
-              <ChartFrame>
-                <LineChart data={guard}>
-                  <CartesianGrid stroke="#34373e" vertical={false} />
-                  <XAxis dataKey="t" stroke="#9b9488" tickFormatter={(value) => clock(Number(value))} />
-                  <YAxis stroke="#9b9488" unit="%" />
-                  <Tooltip labelFormatter={(value) => clock(Number(value))} />
-                  <Legend />
-                  <Line dataKey="red" name="red" stroke={RED} dot={false} strokeWidth={1.6} />
-                  <Line dataKey="blue" name="blue" stroke={BLUE} dot={false} strokeWidth={1.6} />
-                </LineChart>
-              </ChartFrame>
-            </div>
-            <div className="chart-block">
-              <h3>Head speed</h3>
-              <ChartFrame>
-                <LineChart data={head}>
-                  <CartesianGrid stroke="#34373e" vertical={false} />
-                  <XAxis dataKey="t" stroke="#9b9488" tickFormatter={(value) => clock(Number(value))} />
-                  <YAxis stroke="#9b9488" />
-                  <Tooltip labelFormatter={(value) => clock(Number(value))} />
-                  <Legend />
-                  <Line dataKey="red" name="red" stroke={RED} dot={false} strokeWidth={1.6} />
-                  <Line dataKey="blue" name="blue" stroke={BLUE} dot={false} strokeWidth={1.6} />
-                </LineChart>
-              </ChartFrame>
-            </div>
-            <TrajectoryTable offense={round.offense} />
-          </div>
-
-          <h3 className="round-sub">Key moments</h3>
-          <div className="filters">
-            {momentTypes.map((type) => (
-              <button key={type} className={momentType === type ? "on" : ""} onClick={() => setMomentType(type)}>
-                {type.replaceAll("_", " ")}
-              </button>
-            ))}
-          </div>
-          <ul className="moments">
-            {moments.map((moment) => (
-              <li key={`${moment.tick}-${moment.type}-${moment.corners.join()}`}>
-                <span className="time">{clock(moment.t_sec)}</span>
-                <span className={`tag ${moment.corners.length === 1 ? cornerColor(moment.corners[0]) : ""}`}>
-                  {moment.type.replaceAll("_", " ")}
-                </span>
-                <span>{formatDetail(moment.detail)}</span>
-              </li>
-            ))}
-          </ul>
-
-          <h3 className="round-sub">Punch log</h3>
-          <div className="filters">
-            {(["both", 2, 1] as const).map((corner) => (
-              <button key={String(corner)} className={cornerFilter === corner ? "on" : ""} onClick={() => setCornerFilter(corner)}>
-                {corner === "both" ? "Both" : cornerColor(corner)}
-              </button>
-            ))}
-          </div>
-          <div className="log">
-            <table>
-              <thead>
-                <tr>
-                  <th>Time</th>
-                  <th>Corner</th>
-                  <th>Hand</th>
-                  <th>Trajectory</th>
-                  <th>Speed</th>
-                  <th>Landed</th>
-                  <th>Punishment step</th>
-                </tr>
-              </thead>
-              <tbody>
-                {punches.map((punch, index) => (
-                  <tr key={`${punch.t_sec}-${punch.corner}-${index}`}>
-                    <td>{clock(punch.t_sec)}</td>
-                    <td className={`tag ${cornerColor(punch.corner)}`}>{cornerColor(punch.corner)}</td>
-                    <td>{punch.hand.replaceAll("_", " ")}</td>
-                    <td>{punch.trajectory}</td>
-                    <td className="num">{num(punch.speed, 2)}</td>
-                    <td className={punch.landed ? "landed" : ""}>{punch.landed ? "yes" : "no"}</td>
-                    <td className="num">{num(punch.punishment_delta, 2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-    </section>
-  );
-}
-
-function Row({
-  label,
-  red,
-  blue,
-  suffix = "",
-}: {
-  label: string;
-  red: string | number | null | undefined;
-  blue: string | number | null | undefined;
-  suffix?: string;
-}) {
-  const cell = (value: string | number | null | undefined) => (value == null || value === "" ? "—" : `${value}${suffix}`);
-  return (
-    <tr>
-      <td>{label}</td>
-      <td className="num">{cell(red)}</td>
-      <td className="num">{cell(blue)}</td>
-    </tr>
-  );
-}
-
-function ChartFrame({ children }: { children: ReactElement }) {
-  return (
-    <div style={{ height: 220 }}>
-      <ResponsiveContainer width="100%" height="100%">
-        {children}
-      </ResponsiveContainer>
-    </div>
-  );
-}
-
-function handChart(offenseRows: FightAnalytics["offense"]) {
-  const points = [];
-  for (const offense of offenseRows) {
-    const color = cornerColor(offense.corner);
-    for (const hand of offense.hands) {
-      if (hand.hand === "unmatched") continue;
-      points.push({
-        name: `${color === "red" ? "R" : "B"} ${hand.hand.replace("hand_", "")}`,
-        thrown: hand.thrown,
-        landed: hand.landed,
-      });
-    }
-  }
-  return points;
-}
-
-function TrajectoryTable({ offense }: { offense: FightAnalytics["offense"] }) {
-  const names = Array.from(
-    new Set(offense.flatMap((item) => item.trajectories.map((row) => row.trajectory))),
-  );
-  return (
-    <div className="chart-block span">
-      <h3>Trajectory</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>Type</th>
-            <th>Red thrown</th>
-            <th>Red landed</th>
-            <th>Blue thrown</th>
-            <th>Blue landed</th>
-          </tr>
-        </thead>
-        <tbody>
-          {names.map((name) => {
-            const red = offense.find((item) => cornerColor(item.corner) === "red")?.trajectories.find((row) => row.trajectory === name);
-            const blue = offense.find((item) => cornerColor(item.corner) === "blue")?.trajectories.find((row) => row.trajectory === name);
+        <nav className="px-space-md flex flex-col gap-space-xs">
+          {NAV_ITEMS.map((item) => {
+            const active = activeView === item.id;
             return (
-              <tr key={name}>
-                <td>{name}</td>
-                <td className="num">{red?.thrown ?? 0}</td>
-                <td className="num">{red?.landed ?? 0}</td>
-                <td className="num">{blue?.thrown ?? 0}</td>
-                <td className="num">{blue?.landed ?? 0}</td>
-              </tr>
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => {
+                  setActiveView(item.id);
+                  setMobileMenuOpen(false);
+                }}
+                className={`flex items-center px-space-md py-space-sm rounded transition-colors text-left font-headline-sm text-telemetry-metric-sm ${
+                  active
+                    ? "bg-surface-container-high text-primary font-bold"
+                    : "text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
+                }`}
+              >
+                <span className="material-symbols-outlined mr-space-sm text-[18px]">{item.icon}</span>
+                {item.label}
+              </button>
             );
           })}
-        </tbody>
-      </table>
+        </nav>
+
+        {/* Scrollable Session List for Fast Switching */}
+        <div className="px-space-lg pt-space-md pb-space-xs">
+          <span className="font-label-caps text-label-caps text-outline uppercase tracking-wider">
+            Library Recordings
+          </span>
+        </div>
+        <div className="flex-1 overflow-y-auto px-space-md space-y-1 pb-space-sm">
+          {sessions.map((s) => {
+            const isSel = s.name === selected;
+            return (
+              <button
+                key={s.name}
+                type="button"
+                onClick={() => {
+                  setSelected(s.name);
+                  setMobileMenuOpen(false);
+                }}
+                className={`w-full p-space-xs rounded transition-colors ${
+                  isSel
+                    ? "bg-surface-container-high ring-1 ring-primary/40"
+                    : "hover:bg-surface-container"
+                }`}
+              >
+                <RecordingCardRow row={s} />
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Bottom Session Telemetry Card */}
+        <div className="p-space-md bg-surface-container-low border-t border-surface-container">
+          <div className="bg-surface-container-lowest p-space-sm rounded flex flex-col gap-space-xs">
+            <div className="flex items-center justify-between font-label-caps text-label-caps text-outline">
+              <span>SESSION TELEMETRY</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-secondary" />
+            </div>
+            <div className="font-label-data text-label-data text-on-surface truncate">
+              {report?.session.venue ?? "No Venue"}
+            </div>
+            <div className="flex items-center justify-between font-label-data text-label-data text-outline">
+              <span>
+                {report
+                  ? `${report.session.rounds_scheduled} × ${clockWhole(report.session.round_duration_sec)}`
+                  : "—"}
+              </span>
+              <span className="text-tertiary">{report ? `${clock(report.session.duration_sec)} total` : "—"}</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      {/* MAIN SHELL CONTENT */}
+      <div className="lg:pl-72 flex flex-col min-h-screen">
+        {/* TOP HEADER BAR */}
+        <header className="sticky top-0 z-40 h-16 bg-surface/95 backdrop-blur-xl border-b border-surface-container px-space-md lg:px-space-gutter-desktop flex items-center justify-between gap-2">
+          <div className="flex items-center gap-space-sm min-w-0">
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(true)}
+              className="lg:hidden p-1 rounded bg-surface-container text-on-surface"
+              aria-label="Open menu"
+            >
+              <span className="material-symbols-outlined">menu</span>
+            </button>
+            <div className="flex items-center gap-space-xs bg-surface-container px-space-md py-space-xs rounded truncate">
+              <span className="material-symbols-outlined text-secondary text-[18px]">videocam</span>
+              <span className="font-label-caps text-label-caps text-on-surface">BOUT RECORDING</span>
+              {report?.session.venue && (
+                <span className="font-label-data text-label-data text-outline hidden sm:inline">
+                  · {report.session.venue}
+                </span>
+              )}
+            </div>
+            {report && (
+              <div className="hidden xl:flex items-center gap-space-sm text-outline font-label-data text-label-data">
+                <span className="w-2 h-2 rounded-full bg-secondary" />
+                <span>Tick Base: {hz} Hz</span>
+                <span className="text-surface-variant">|</span>
+                <span>{report.session.source}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-space-xs sm:gap-space-sm shrink-0">
+            <button
+              type="button"
+              onClick={openImport}
+              className="flex items-center gap-space-xs bg-surface-container-high hover:bg-surface-bright text-on-surface px-space-sm py-space-xs rounded font-label-data text-label-data transition-colors"
+            >
+              <span className="material-symbols-outlined text-[16px]">file_upload</span>
+              <span className="hidden sm:inline">Import Recording</span>
+            </button>
+
+            <label className="flex items-center gap-space-xs bg-surface-container-high hover:bg-surface-bright text-on-surface px-space-sm py-space-xs rounded font-label-data text-label-data transition-colors cursor-pointer">
+              <span className="material-symbols-outlined text-[16px]">folder_zip</span>
+              <span className="hidden sm:inline">Open Zip</span>
+              <input
+                type="file"
+                accept=".zip"
+                hidden
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) void onUpload(file);
+                }}
+              />
+            </label>
+
+            {report && (
+              <button
+                type="button"
+                onClick={exportJson}
+                className="flex items-center gap-space-xs bg-surface-container-high hover:bg-surface-bright text-on-surface px-space-sm py-space-xs rounded font-label-data text-label-data transition-colors"
+              >
+                <span className="material-symbols-outlined text-[16px]">ios_share</span>
+                <span className="hidden md:inline">Export JSON</span>
+              </button>
+            )}
+          </div>
+        </header>
+
+        {/* SUB-HEADER FIGHTER ANCHOR & ROUND BAR */}
+        {report && (
+          <div className="sticky top-16 z-30 bg-surface-container-low border-b border-surface-container px-space-md lg:px-space-gutter-desktop py-space-sm flex flex-col md:flex-row md:items-center justify-between gap-space-sm shadow-sm">
+            <div className="flex items-center gap-space-md flex-wrap">
+              {/* Red Fighter */}
+              <div className="flex items-center gap-space-sm">
+                <span className="w-2.5 h-2.5 rounded bg-primary-container shadow-[0_0_10px_rgba(255,84,81,0.5)]" />
+                <div>
+                  <div className="flex items-center gap-space-xs">
+                    <span className="font-headline-sm text-headline-sm text-on-surface">
+                      {red?.name ?? "Red"}
+                    </span>
+                    <span className="font-label-caps text-label-caps text-primary bg-on-primary-container px-space-xs rounded">
+                      RED
+                    </span>
+                  </div>
+                  <span className="font-label-data text-label-data text-outline">
+                    {[red?.stance, red?.height_m ? `${red.height_m.toFixed(2)}m` : null]
+                      .filter(Boolean)
+                      .join(" · ") || "Corner 2"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Verdict Badge */}
+              <div className="flex items-center gap-space-xs px-space-md py-space-xs bg-surface-container rounded">
+                <span className="font-label-caps text-label-caps text-tertiary font-bold">VERDICT:</span>
+                <span className="font-telemetry-metric-sm text-on-surface font-bold">
+                  {verdictBadge(report)}
+                </span>
+              </div>
+
+              {/* Blue Fighter */}
+              <div className="flex items-center gap-space-sm">
+                <div className="md:text-right">
+                  <div className="flex items-center md:justify-end gap-space-xs">
+                    <span className="font-label-caps text-label-caps text-secondary bg-on-secondary-container px-space-xs rounded">
+                      BLUE
+                    </span>
+                    <span className="font-headline-sm text-headline-sm text-on-surface">
+                      {blue?.name ?? "Blue"}
+                    </span>
+                  </div>
+                  <span className="font-label-data text-label-data text-outline">
+                    {[blue?.stance, blue?.ai_archetype, blue?.height_m ? `${blue.height_m.toFixed(2)}m` : null]
+                      .filter(Boolean)
+                      .join(" · ") || "Corner 1"}
+                  </span>
+                </div>
+                <span className="w-2.5 h-2.5 rounded bg-secondary shadow-[0_0_10px_rgba(76,215,246,0.5)]" />
+              </div>
+            </div>
+
+            {/* Global Round Slice Selector */}
+            <div className="flex items-center bg-surface-container p-space-xs rounded gap-space-xs overflow-x-auto">
+              <button
+                type="button"
+                onClick={() => setScope("all")}
+                className={`px-space-sm py-space-xs rounded font-label-data text-label-data whitespace-nowrap transition-colors ${
+                  scope === "all"
+                    ? "bg-surface-bright text-on-surface font-semibold"
+                    : "text-outline hover:text-on-surface hover:bg-surface-container-high"
+                }`}
+              >
+                Full Bout
+              </button>
+              {completedRounds.map((r) => (
+                <button
+                  key={r.index}
+                  type="button"
+                  onClick={() => setScope(r.index)}
+                  className={`px-space-sm py-space-xs rounded font-label-data text-label-data whitespace-nowrap transition-colors ${
+                    scope === r.index
+                      ? "bg-surface-bright text-on-surface font-semibold"
+                      : "text-outline hover:text-on-surface hover:bg-surface-container-high"
+                  }`}
+                >
+                  Round {r.index + 1}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* IMPORT MODAL */}
+        {importOpen && (
+          <div
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-start justify-center p-4 sm:p-8 overflow-y-auto"
+            role="dialog"
+            aria-label="Import recording"
+          >
+            <div className="bg-surface-container-low border border-surface-variant rounded-xl w-full max-w-2xl p-space-lg shadow-2xl my-8">
+              <div className="flex items-start justify-between gap-space-md pb-space-md border-b border-surface-container">
+                <div>
+                  <h2 className="font-headline-md text-headline-md text-on-surface m-0">
+                    Import Game Session Recording
+                  </h2>
+                  <p className="font-label-data text-label-data text-outline m-0 mt-1 break-all">
+                    {formatPath(gameListing?.directory ?? "Steam Proton SessionRecordings folder")}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setImportOpen(false)}
+                  className="px-space-sm py-space-xs rounded bg-surface-container-high hover:bg-surface-bright text-on-surface font-label-data text-label-data"
+                >
+                  Close
+                </button>
+              </div>
+
+              {importError && <p className="text-error font-label-data py-space-md">{importError}</p>}
+              {!gameListing && !importError && (
+                <p className="text-outline font-label-data py-space-lg">Scanning game recordings folder…</p>
+              )}
+              {gameListing && !gameListing.available && (
+                <p className="text-outline font-label-data py-space-lg">
+                  The game recordings folder was not found on this machine.
+                </p>
+              )}
+              {gameListing?.available && gameListing.recordings.length === 0 && (
+                <p className="text-outline font-label-data py-space-lg">
+                  No session zip recordings found in that directory.
+                </p>
+              )}
+
+              {gameListing && gameListing.recordings.length > 0 && (
+                <ul className="divide-y divide-surface-container max-h-96 overflow-y-auto list-none p-0 m-0 mt-space-sm">
+                  {gameListing.recordings.map((rec) => (
+                    <li key={rec.name}>
+                      <button
+                        type="button"
+                        disabled={importing !== null}
+                        onClick={() => void onImport(rec.name)}
+                        className="w-full py-space-sm px-space-xs hover:bg-surface-container transition-colors disabled:opacity-50"
+                      >
+                        <RecordingCardRow
+                          row={rec}
+                          notes={[
+                            rec.imported ? "in library" : "",
+                            importing === rec.name ? "importing…" : "",
+                          ]}
+                        />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* VIEWPORT BODY */}
+        <main className="flex-1 w-full px-space-md lg:px-space-gutter-desktop py-space-lg">
+          {error && (
+            <div className="bg-error-container/30 border border-error/40 text-error p-space-md rounded-lg font-label-data mb-space-md">
+              {error}
+            </div>
+          )}
+          {loading && !report && (
+            <div className="text-outline font-label-data py-16 text-center">
+              Decoding T2SR telemetry streams…
+            </div>
+          )}
+          {!loading && !report && !error && (
+            <div className="text-outline font-label-data py-16 text-center">
+              Select or import a Thrill of the Fight 2 session zip to inspect telemetry.
+            </div>
+          )}
+
+          {report && activeView === "fight-summary" && (
+            <FightSummaryView
+              report={report}
+              scope={scope}
+              onSelectScope={setScope}
+              onNavigate={setActiveView}
+            />
+          )}
+          {report && activeView === "spatial-heatmaps" && (
+            <SpatialHeatmapsView report={report} scope={scope} onSelectScope={setScope} />
+          )}
+          {report && activeView === "strike-telemetry" && (
+            <CombinationsMatrixView report={report} scope={scope} onSelectScope={setScope} />
+          )}
+          {report && activeView === "kinetics-force" && (
+            <KineticsForceView
+              report={report}
+              scope={scope}
+              onSelectScope={setScope}
+              onNavigate={setActiveView}
+            />
+          )}
+          {report && activeView === "force-degradation" && <ForceDegradationView report={report} />}
+          {report && activeView === "punch-log" && (
+            <PunchLogView report={report} scope={scope} onSelectScope={setScope} />
+          )}
+        </main>
+      </div>
     </div>
   );
 }

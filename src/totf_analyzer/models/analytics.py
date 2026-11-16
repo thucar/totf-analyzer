@@ -67,6 +67,8 @@ class SessionFacts(BaseModel):
     rounds_scheduled: int
     round_duration_sec: float
     break_duration_sec: float
+    ring_size_x_m: float | None = None
+    ring_size_z_m: float | None = None
     duration_sec: float
     fixed_timestep: float
     start_tick: int

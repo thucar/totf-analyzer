@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><meta content="web_dashboard" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;family=Space+Grotesk:wght@600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{colors:{"on-primary-fixed-variant":"#930013","secondary-fixed":"#acedff","on-tertiary-fixed-variant":"#653e00","surface-dim":"#10131b","on-primary":"#68000a","inverse-on-surface":"#2d3038","on-tertiary":"#472a00","on-surface-variant":"#e4beba","surface-container":"#1c2027","on-secondary-fixed":"#001f26","on-surface":"#dfe2ed","on-tertiary-container":"#3e2400","tertiary":"#ffb95f","surface-variant":"#31353d","surface-container-lowest":"#0a0e15","surface":"#10131b","inverse-primary":"#b91a24","surface-container-highest":"#31353d","primary-fixed-dim":"#ffb3ad","on-primary-fixed":"#410004","outline":"#ab8986","error-container":"#93000a","surface-bright":"#353941","on-background":"#dfe2ed","outline-variant":"#5b403e","on-error":"#690005","primary-fixed":"#ffdad7","on-tertiary-fixed":"#2a1700","error":"#ffb4ab","background":"#10131b","surface-tint":"#ffb3ad","on-primary-container":"#5c0008","tertiary-container":"#ca8100","inverse-surface":"#dfe2ed","secondary-fixed-dim":"#4cd7f6","on-secondary":"#003640","primary":"#ffb3ad","surface-container-low":"#181c23","primary-container":"#ff5451","surface-container-high":"#262a32","on-secondary-fixed-variant":"#004e5c","on-error-container":"#ffdad6","tertiary-fixed-dim":"#ffb95f","on-secondary-container":"#00424e","secondary":"#4cd7f6","secondary-container":"#03b5d3","tertiary-fixed":"#ffddb8"},borderRadius:{DEFAULT:"0.125rem",lg:"0.25rem",xl:"0.5rem",full:"0.75rem"},spacing:{"space-sm":"0.5rem",margin:"1rem","space-md":"0.75rem","space-xs":"0.25rem","space-xl":"2rem","space-lg":"1.25rem","gutter-desktop":"1.25rem","margin-desktop":"2rem",gutter:"1rem"},fontFamily:{"label-data":["JetBrains Mono"],"label-caps":["JetBrains Mono"],"headline-lg":["Space Grotesk"],"body-md":["Inter"],"telemetry-metric-md":["JetBrains Mono"],"headline-sm":["Space Grotesk"],"display-hero":["JetBrains Mono"],"telemetry-metric-sm":["JetBrains Mono"],"headline-md":["Space Grotesk"],"body-sm":["Inter"],"body-lg":["Inter"],"telemetry-metric-lg":["JetBrains Mono"],"display-hero-mobile":["JetBrains Mono"]},fontSize:{"label-data":["12px",{lineHeight:"16px",letterSpacing:"0.02em",fontWeight:"400"}],"label-caps":["11px",{lineHeight:"14px",letterSpacing:"0.08em",fontWeight:"600"}],"headline-lg":["28px",{lineHeight:"34px",letterSpacing:"-0.02em",fontWeight:"700"}],"body-md":["14px",{lineHeight:"20px",fontWeight:"400"}],"telemetry-metric-md":["20px",{lineHeight:"24px",letterSpacing:"-0.02em",fontWeight:"500"}],"headline-sm":["18px",{lineHeight:"24px",letterSpacing:"0em",fontWeight:"600"}],"display-hero":["48px",{lineHeight:"52px",letterSpacing:"-0.04em",fontWeight:"700"}],"telemetry-metric-sm":["14px",{lineHeight:"18px",letterSpacing:"-0.01em",fontWeight:"500"}],"headline-md":["22px",{lineHeight:"28px",letterSpacing:"-0.01em",fontWeight:"600"}],"body-sm":["12px",{lineHeight:"16px",fontWeight:"400"}],"body-lg":["16px",{lineHeight:"24px",fontWeight:"400"}],"telemetry-metric-lg":["32px",{lineHeight:"36px",letterSpacing:"-0.03em",fontWeight:"600"}],"display-hero-mobile":["32px",{lineHeight:"36px",letterSpacing:"-0.03em",fontWeight:"700"}]}}}}</script></head><body class="bg-surface font-body-md text-on-surface antialiased"><aside class="fixed left-0 top-0 h-full w-72 bg-surface-container-lowest z-50 flex flex-col"><div class="p-space-lg bg-surface-container-low flex items-center justify-between"><div class="flex items-center gap-space-sm"><div class="w-7 h-7 bg-primary-container text-on-primary-container flex items-center justify-center font-display-hero text-telemetry-metric-sm font-bold">T</div><div class="flex flex-col"><span class="font-headline-sm text-headline-sm uppercase tracking-tight text-on-surface">TOTF ANALYZER</span><span class="font-label-caps text-label-caps text-secondary tracking-widest">VR COMBAT TELEMETRY</span></div></div><span class="material-symbols-outlined text-outline-variant text-[18px]">sports_martial_arts</span></div><div class="px-space-md py-space-sm bg-surface-container-lowest"><label class="font-label-caps text-label-caps text-outline uppercase px-space-xs mb-space-xs block">Select Fight Bout</label><div class="relative"><select class="w-full bg-surface-container-high text-on-surface font-label-data text-label-data px-space-sm py-space-xs rounded appearance-none cursor-pointer focus:outline-none focus:bg-surface-bright"><option selected="">thucar vs Brendan Kowalski · W-UD 30-27</option><option>thucar vs Mason Pearce · W-KO R2</option><option>thucar vs Tendai Potter · W-KO R1</option><option>thucar vs Edward Price · L-SD 28-29</option></select><span class="material-symbols-outlined absolute right-space-xs top-1/2 -translate-y-1/2 text-outline pointer-events-none text-[16px]">expand_more</span></div></div><div class="px-space-lg pt-space-md pb-space-xs"><span class="font-label-caps text-label-caps text-outline uppercase tracking-wider">Analysis Views</span></div><nav class="flex-1 px-space-md flex flex-col gap-space-xs" data-active-classes="bg-surface-container-high text-primary font-bold"><a class="flex items-center px-space-md py-space-sm rounded text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors font-headline-sm text-telemetry-metric-sm" data-path="fight-summary" href="#"><span class="material-symbols-outlined mr-space-sm text-[18px]">analytics</span>Fight Summary</a><a class="flex items-center px-space-md py-space-sm rounded text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors font-headline-sm text-telemetry-metric-sm" data-path="strike-telemetry" href="#"><span class="material-symbols-outlined mr-space-sm text-[18px]">speed</span>Strike Telemetry</a><a class="flex items-center px-space-md py-space-sm rounded text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors font-headline-sm text-telemetry-metric-sm" data-path="kinetics-force" href="#"><span class="material-symbols-outlined mr-space-sm text-[18px]">fitness_center</span>Kinetics &amp; Force</a><a class="flex items-center px-space-md py-space-sm rounded text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors font-headline-sm text-telemetry-metric-sm" data-path="spatial-heatmaps" href="#"><span class="material-symbols-outlined mr-space-sm text-[18px]">radar</span>Spatial Heatmaps</a><a class="flex items-center px-space-md py-space-sm rounded text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors font-headline-sm text-telemetry-metric-sm" data-path="punch-log" href="#"><span class="material-symbols-outlined mr-space-sm text-[18px]">list_alt</span>Punch Log</a><a class="flex items-center px-space-md py-space-sm rounded text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors font-headline-sm text-telemetry-metric-sm" data-path="cardio-pace" href="#"><span class="material-symbols-outlined mr-space-sm text-[18px]">ecg_heart</span>Cardio &amp; Pace</a></nav><div class="p-space-md bg-surface-container-low"><div class="bg-surface-container-lowest p-space-sm rounded flex flex-col gap-space-xs"><div class="flex items-center justify-between font-label-caps text-label-caps text-outline"><span>SESSION TELEMETRY</span><span class="w-1.5 h-1.5 rounded-full bg-secondary"></span></div><div class="font-label-data text-label-data text-on-surface">Night Gym Arena</div><div class="flex items-center justify-between font-label-data text-label-data text-outline"><span>3 x 2:00 min</span><span class="text-tertiary">8:34.6 total</span></div></div></div></aside><div class="pl-72"><header class="fixed top-0 left-72 right-0 h-16 bg-surface/90 backdrop-blur-xl z-40 px-space-gutter-desktop flex items-center justify-between"><div class="flex items-center gap-space-lg"><div class="flex items-center gap-space-xs bg-surface-container px-space-md py-space-xs rounded"><span class="material-symbols-outlined text-secondary text-[18px]">videocam</span><span class="font-label-caps text-label-caps text-on-surface">LIVE BOUT RECORDING</span><span class="font-label-data text-label-data text-outline">· Night Gym</span></div><div class="hidden xl:flex items-center gap-space-sm text-outline font-label-data text-label-data"><span class="w-2 h-2 rounded-full bg-secondary"></span><span>Tracking Rate: 90 Hz</span><span class="text-surface-variant">|</span><span>Tracking Quality: 99.4%</span></div></div><div class="flex items-center gap-space-sm"><button class="flex items-center gap-space-xs bg-surface-container-high hover:bg-surface-bright text-on-surface hover:text-on-surface px-space-sm py-space-xs rounded font-label-data text-label-data transition-colors"><span class="material-symbols-outlined text-[16px]">file_upload</span>Import Recording</button><button class="flex items-center gap-space-xs bg-surface-container-high hover:bg-surface-bright text-on-surface hover:text-on-surface px-space-sm py-space-xs rounded font-label-data text-label-data transition-colors"><span class="material-symbols-outlined text-[16px]">folder_zip</span>Open Zip</button><button class="flex items-center gap-space-xs bg-surface-container-high hover:bg-surface-bright text-on-surface hover:text-on-surface px-space-sm py-space-xs rounded font-label-data text-label-data transition-colors"><span class="material-symbols-outlined text-[16px]">ios_share</span>Export PDF/JSON</button><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center ml-space-xs"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></header><div class="fixed top-16 left-72 right-0 h-16 bg-surface-container-low z-30 px-space-gutter-desktop flex items-center justify-between shadow-[0_1px_8px_rgba(0,0,0,0.2)]"><div class="flex items-center gap-space-lg"><div class="flex items-center gap-space-sm"><span class="w-2.5 h-2.5 rounded bg-primary-container shadow-[0_0_12px_rgba(255,84,81,0.5)]"></span><div><div class="flex items-center gap-space-xs"><span class="font-headline-sm text-headline-sm text-on-surface">thucar</span><span class="font-label-caps text-label-caps text-primary bg-on-primary-container px-space-xs rounded">RED</span></div><span class="font-label-data text-label-data text-outline">Orthodox · 1.85m</span></div></div><div class="flex items-center gap-space-sm px-space-md py-space-xs bg-surface-container rounded"><span class="font-label-caps text-label-caps text-tertiary font-bold">VERDICT:</span><span class="font-telemetry-metric-sm text-telemetry-metric-sm text-on-surface">W-UD 30–27</span></div><div class="flex items-center gap-space-sm"><div class="text-right"><div class="flex items-center justify-end gap-space-xs"><span class="font-label-caps text-label-caps text-secondary bg-on-secondary-container px-space-xs rounded">BLUE</span><span class="font-headline-sm text-headline-sm text-on-surface">Brendan Kowalski</span></div><span class="font-label-data text-label-data text-outline">Orthodox · Infighter · 1.87m</span></div><span class="w-2.5 h-2.5 rounded bg-secondary shadow-[0_0_12px_rgba(76,215,246,0.5)]"></span></div></div><div class="flex items-center bg-surface-container p-space-xs rounded gap-space-xs"><button class="px-space-sm py-space-xs rounded font-label-data text-label-data bg-surface-bright text-on-surface font-semibold">Fight Summary</button><button class="px-space-sm py-space-xs rounded font-label-data text-label-data text-outline hover:text-on-surface hover:bg-surface-container-high transition-colors">Round 1</button><button class="px-space-sm py-space-xs rounded font-label-data text-label-data text-outline hover:text-on-surface hover:bg-surface-container-high transition-colors">Round 2</button><button class="px-space-sm py-space-xs rounded font-label-data text-label-data text-outline hover:text-on-surface hover:bg-surface-container-high transition-colors">Round 3</button></div></div><main class="relative pt-32 w-full px-space-gutter-desktop pb-space-xl bg-surface min-h-screen"><div class="flex flex-col w-full">
+<!-- Sub-Header View Navigation & Tactical Breadcrumb -->
+<div class="flex flex-col lg:flex-row lg:items-center justify-between gap-space-md py-space-sm mb-space-lg">
+<div class="flex items-center gap-space-sm flex-wrap">
+<span class="font-label-caps text-label-caps text-secondary uppercase bg-surface-container px-space-sm py-space-xs rounded">Telemetry Module 04</span>
+<span class="text-surface-variant font-label-data text-label-data">/</span>
+<h1 class="font-headline-md text-headline-md text-on-surface uppercase tracking-tight">Spatial Heatmaps &amp; Kinematic Biomechanics</h1>
+<span class="flex items-center gap-space-xs font-label-data text-label-data text-outline bg-surface-container-low px-space-sm py-space-xs rounded">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+        6-DOF Tracking [Quest Pro HMD + Touch Pro @ 90Hz]
+      </span>
+</div>
+<!-- Multi-Round Granular Selector -->
+<div class="flex items-center bg-surface-container-low p-space-xs rounded gap-space-xs">
+<button class="px-space-md py-space-xs rounded font-label-caps text-label-caps bg-surface-bright text-on-surface font-semibold shadow-sm transition-all" data-round="all">ALL ROUNDS</button>
+<button class="px-space-md py-space-xs rounded font-label-caps text-label-caps text-outline hover:text-on-surface hover:bg-surface-container-high transition-colors" data-round="1">R1 (2:00)</button>
+<button class="px-space-md py-space-xs rounded font-label-caps text-label-caps text-outline hover:text-on-surface hover:bg-surface-container-high transition-colors" data-round="2">R2 (2:00)</button>
+<button class="px-space-md py-space-xs rounded font-label-caps text-label-caps text-outline hover:text-on-surface hover:bg-surface-container-high transition-colors" data-round="3">R3 (2:00)</button>
+<div class="h-4 w-[1px] bg-surface-container-highest mx-space-xs hidden sm:block"></div>
+<button class="flex items-center gap-space-xs px-space-sm py-space-xs rounded font-label-caps text-label-caps text-outline hover:text-secondary hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-[16px]">tune</span>
+<span>Filter IK</span>
+</button>
+</div>
+</div>
+<!-- Realtime Fighter Bio Anchor Strip -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-space-md mb-space-lg">
+<!-- Red Corner Specimen Profile -->
+<div class="md:col-span-4 bg-surface-container-low p-space-md rounded flex items-center justify-between relative overflow-hidden shadow-sm">
+<div class="absolute -right-4 -bottom-4 w-28 h-28 bg-primary-container/10 rounded-full blur-2xl pointer-events-none"></div>
+<div class="flex items-center gap-space-md z-10">
+<div class="w-12 h-12 rounded bg-surface-container-high flex flex-col items-center justify-center text-primary-container">
+<span class="material-symbols-outlined text-[24px]">sports_mma</span>
+<span class="font-label-caps text-[9px] uppercase font-bold">RED</span>
+</div>
+<div>
+<div class="flex items-center gap-space-xs">
+<span class="font-headline-sm text-headline-sm text-on-surface uppercase font-bold">thucar</span>
+<span class="font-label-caps text-[10px] bg-on-primary-container text-primary px-space-xs rounded font-semibold">ORTHODOX</span>
+</div>
+<p class="font-label-data text-label-data text-outline">Upright Pocket Sniper · 1.85m · 74.2kg</p>
+</div>
+</div>
+<div class="text-right z-10">
+<div class="font-label-caps text-label-caps text-outline">CANVAS DIST.</div>
+<div class="font-telemetry-metric-md text-telemetry-metric-md text-primary">111.1 <span class="font-label-data text-label-data text-outline">m</span></div>
+</div>
+</div>
+<!-- Center Ring Dynamic Verdict & Clock Module -->
+<div class="md:col-span-4 bg-surface-container-low p-space-md rounded flex flex-col items-center justify-center text-center shadow-sm">
+<div class="flex items-center gap-space-sm mb-space-xs">
+<span class="font-label-caps text-label-caps text-tertiary bg-on-tertiary-container/30 px-space-sm py-0.5 rounded font-bold uppercase tracking-wider">OFFICIAL BOUT RESULT</span>
+<span class="font-label-data text-label-data text-outline">Full Distance 3 Rds</span>
+</div>
+<div class="font-display-hero text-telemetry-metric-lg text-on-surface font-bold tracking-tight">W-UD 30–27</div>
+<div class="flex items-center gap-space-md mt-space-xs font-label-data text-label-data text-outline">
+<span>Judge A: 30-27</span>
+<span>•</span>
+<span>Judge B: 30-27</span>
+<span>•</span>
+<span>Judge C: 29-28</span>
+</div>
+</div>
+<!-- Blue Corner Specimen Profile -->
+<div class="md:col-span-4 bg-surface-container-low p-space-md rounded flex items-center justify-between relative overflow-hidden shadow-sm">
+<div class="absolute -left-4 -bottom-4 w-28 h-28 bg-secondary/10 rounded-full blur-2xl pointer-events-none"></div>
+<div class="text-left z-10">
+<div class="font-label-caps text-label-caps text-outline">CANVAS DIST.</div>
+<div class="font-telemetry-metric-md text-telemetry-metric-md text-secondary">95.7 <span class="font-label-data text-label-data text-outline">m</span></div>
+</div>
+<div class="flex items-center gap-space-md z-10">
+<div class="text-right">
+<div class="flex items-center justify-end gap-space-xs">
+<span class="font-label-caps text-[10px] bg-on-secondary-container text-secondary px-space-xs rounded font-semibold">INFIGHTER</span>
+<span class="font-headline-sm text-headline-sm text-on-surface uppercase font-bold">Kowalski</span>
+</div>
+<p class="font-label-data text-label-data text-outline">Aggressive Pressure · 1.87m · 75.0kg</p>
+</div>
+<div class="w-12 h-12 rounded bg-surface-container-high flex flex-col items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-[24px]">sports_mma</span>
+<span class="font-label-caps text-[9px] uppercase font-bold">BLUE</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Primary Analytics Section: 2D Spatial Ring Control & Heatmap -->
+<div class="grid grid-cols-1 xl:grid-cols-12 gap-space-gutter-desktop mb-space-lg">
+<!-- Left: Interactive Vector Ring Arena Heatmap Canvas -->
+<div class="xl:col-span-7 bg-surface-container-low p-space-lg rounded flex flex-col justify-between shadow-md">
+<div class="flex items-center justify-between mb-space-md">
+<div class="flex items-center gap-space-sm">
+<span class="material-symbols-outlined text-secondary text-[20px]">radar</span>
+<span class="font-headline-sm text-headline-sm text-on-surface uppercase">Ring Footprint &amp; Positional Density</span>
+</div>
+<div class="flex items-center gap-space-xs bg-surface-container px-space-sm py-space-xs rounded">
+<button class="text-on-surface font-label-data text-label-data px-space-xs py-0.5 rounded bg-surface-bright" id="layer-all">Merged</button>
+<button class="text-primary font-label-data text-label-data px-space-xs py-0.5 rounded hover:bg-surface-container-high transition-colors" id="layer-red">Red Only</button>
+<button class="text-secondary font-label-data text-label-data px-space-xs py-0.5 rounded hover:bg-surface-container-high transition-colors" id="layer-blue">Blue Only</button>
+<button class="text-tertiary font-label-data text-label-data px-space-xs py-0.5 rounded hover:bg-surface-container-high transition-colors" id="layer-vector">Vector Cut Vectors</button>
+</div>
+</div>
+<!-- Ring Graphic (6m x 6m Top-Down Simulation) -->
+<div class="relative w-full aspect-square max-h-[480px] mx-auto bg-surface-container-lowest rounded overflow-hidden flex items-center justify-center p-space-md">
+<svg class="w-full h-full select-none" id="spatial-canvas-svg" viewbox="0 0 500 500">
+<defs>
+<!-- Canvas Grid Pattern -->
+<pattern height="25" id="canvas-grid" patternunits="userSpaceOnUse" width="25">
+<path class="text-surface-variant/40" d="M 25 0 L 0 0 0 25" fill="none" stroke="currentColor" stroke-width="0.75"></path>
+</pattern>
+<!-- Radial Heatmap Gradients for Red Corner dominance -->
+<radialgradient cx="50%" cy="50%" id="heat-red-center" r="50%">
+<stop offset="0%" stop-color="#ff5451" stop-opacity="0.85"></stop>
+<stop offset="35%" stop-color="#ff5451" stop-opacity="0.5"></stop>
+<stop offset="70%" stop-color="#ff5451" stop-opacity="0.15"></stop>
+<stop offset="100%" stop-color="#ff5451" stop-opacity="0"></stop>
+</radialgradient>
+<!-- Radial Heatmap Gradient for Blue Corner chase path -->
+<radialgradient cx="50%" cy="50%" id="heat-blue-orbit" r="50%">
+<stop offset="0%" stop-color="#4cd7f6" stop-opacity="0.75"></stop>
+<stop offset="40%" stop-color="#4cd7f6" stop-opacity="0.35"></stop>
+<stop offset="75%" stop-color="#4cd7f6" stop-opacity="0.1"></stop>
+<stop offset="100%" stop-color="#4cd7f6" stop-opacity="0"></stop>
+</radialgradient>
+<!-- Hotspot Anchor -->
+<radialgradient cx="50%" cy="50%" id="heat-red-highp" r="50%">
+<stop offset="0%" stop-color="#ffb95f" stop-opacity="0.9"></stop>
+<stop offset="50%" stop-color="#ff5451" stop-opacity="0.4"></stop>
+<stop offset="100%" stop-color="#ff5451" stop-opacity="0"></stop>
+</radialgradient>
+</defs>
+<!-- Arena Floor Base -->
+<rect class="text-surface-container-lowest" fill="currentColor" height="500" width="500" x="0" y="0"></rect>
+<rect fill="url(#canvas-grid)" height="440" width="440" x="30" y="30"></rect>
+<!-- Outer Canvas Apron & Ropes -->
+<rect class="text-surface-variant" fill="none" height="400" stroke="currentColor" stroke-width="2" width="400" x="50" y="50"></rect>
+<!-- Inner Ropes (Quad Ropes Boundary) -->
+<rect class="text-outline-variant/60" fill="none" height="376" stroke="currentColor" stroke-dasharray="4 4" stroke-width="1.5" width="376" x="62" y="62"></rect>
+<rect class="text-outline-variant/40" fill="none" height="352" stroke="currentColor" stroke-width="1" width="352" x="74" y="74"></rect>
+<!-- Center Canvas Ring Decal -->
+<circle class="text-surface-container-highest" cx="250" cy="250" fill="none" r="110" stroke="currentColor" stroke-dasharray="6 6" stroke-width="1.5"></circle>
+<circle class="text-surface-container-highest" cx="250" cy="250" fill="none" r="45" stroke="currentColor" stroke-width="1"></circle>
+<path class="text-surface-bright" d="M 240 250 L 260 250 M 250 240 L 250 260" stroke="currentColor" stroke-width="2"></path>
+<!-- Corner Pads & Turnbuckles -->
+<!-- Red Corner: Top Left -->
+<polygon class="text-on-primary-container/40" fill="currentColor" points="50,50 110,50 50,110"></polygon>
+<circle class="text-primary-container" cx="50" cy="50" fill="currentColor" r="9"></circle>
+<text class="text-primary font-label-caps text-[11px] font-bold" fill="currentColor" x="64" y="68">RED</text>
+<!-- Blue Corner: Bottom Right -->
+<polygon class="text-on-secondary-container/40" fill="currentColor" points="450,450 390,450 450,390"></polygon>
+<circle class="text-secondary" cx="450" cy="450" fill="currentColor" r="9"></circle>
+<text class="text-secondary font-label-caps text-[11px] font-bold" fill="currentColor" x="410" y="442">BLUE</text>
+<!-- Neutral Corners -->
+<circle class="text-surface-bright" cx="450" cy="50" fill="currentColor" r="6"></circle>
+<circle class="text-surface-bright" cx="50" cy="450" fill="currentColor" r="6"></circle>
+<!-- Heatmap Layer: Red Corner Center Control (thucar) -->
+<g class="opacity-90 transition-opacity duration-300" id="heatmap-layer-red">
+<!-- Center High Occupancy Cloud -->
+<ellipse cx="242" cy="235" fill="url(#heat-red-center)" rx="85" ry="75"></ellipse>
+<!-- Heavy Pivot Cluster (Red Stance Apex) -->
+<circle cx="230" cy="245" fill="url(#heat-red-highp)" r="46"></circle>
+<circle cx="270" cy="210" fill="url(#heat-red-center)" r="38"></circle>
+<!-- Lateral Exit Cloud (Red Angle Cut Cluster) -->
+<ellipse cx="170" cy="265" fill="url(#heat-red-center)" rx="34" ry="24"></ellipse>
+</g>
+<!-- Heatmap Layer: Blue Corner Perimeter Pressure (Kowalski) -->
+<g class="opacity-80 transition-opacity duration-300" id="heatmap-layer-blue">
+<!-- Blue Ring Orbit / Forward Stalking path -->
+<ellipse cx="295" cy="290" fill="url(#heat-blue-orbit)" rx="90" ry="70"></ellipse>
+<ellipse cx="320" cy="190" fill="url(#heat-blue-orbit)" rx="60" ry="50"></ellipse>
+<ellipse cx="190" cy="330" fill="url(#heat-blue-orbit)" rx="65" ry="45"></ellipse>
+<circle cx="340" cy="310" fill="url(#heat-blue-orbit)" r="42"></circle>
+</g>
+<!-- Movement Trajectories & Angle Cut Vectors -->
+<g class="transition-opacity duration-300" id="vector-layer">
+<!-- Blue Stalking Trajectory Line -->
+<path class="text-secondary/70" d="M 370 380 Q 330 320 300 270 T 260 220" fill="none" stroke="currentColor" stroke-dasharray="3 3" stroke-width="1.8"></path>
+<!-- Red Angle Cut Evade Pivot (The Signature Cut) -->
+<path class="text-primary-container" d="M 230 250 L 165 285 L 140 230" fill="none" stroke="currentColor" stroke-width="2.5"></path>
+<!-- Arrow Head for Red Vector Cut -->
+<polygon class="text-primary-container" fill="currentColor" points="140,230 148,238 143,245"></polygon>
+<!-- Angle Label Badge inside SVG -->
+<rect class="text-surface-container-highest" fill="currentColor" height="18" rx="2" width="56" x="175" y="278"></rect>
+<text class="text-on-surface font-label-data text-[10px] font-bold" fill="currentColor" x="181" y="291">CUT: -14.6°</text>
+<!-- Current Head Positions -->
+<g transform="translate(225, 235)">
+<circle class="text-primary-container animate-pulse" cx="0" cy="0" fill="currentColor" r="8"></circle>
+<line class="text-primary" stroke="currentColor" stroke-width="2" x1="0" x2="-12" y1="0" y2="-12"></line>
+<text class="text-primary font-label-caps text-[9px]" fill="currentColor" x="-24" y="-16">R_HEAD</text>
+</g>
+<g transform="translate(290, 275)">
+<circle class="text-secondary" cx="0" cy="0" fill="currentColor" r="8"></circle>
+<line class="text-secondary" stroke="currentColor" stroke-width="2" x1="0" x2="12" y1="0" y2="12"></line>
+<text class="text-secondary font-label-caps text-[9px]" fill="currentColor" x="16" y="22">B_HEAD</text>
+</g>
+</g>
+</svg>
+<!-- Dynamic On-Canvas Legend -->
+<div class="absolute bottom-4 left-4 right-4 flex items-center justify-between pointer-events-none">
+<div class="flex items-center gap-space-md bg-surface-container-high/90 backdrop-blur-md px-space-md py-space-xs rounded shadow-md pointer-events-auto">
+<div class="flex items-center gap-space-xs">
+<span class="w-3 h-3 rounded-full bg-primary-container"></span>
+<span class="font-label-caps text-label-caps text-on-surface">thucar (Occupancy Apex)</span>
+</div>
+<div class="flex items-center gap-space-xs">
+<span class="w-3 h-3 rounded-full bg-secondary"></span>
+<span class="font-label-caps text-label-caps text-on-surface">Kowalski (Pressure Orbit)</span>
+</div>
+</div>
+<div class="font-label-data text-label-data text-outline bg-surface-container-high/90 backdrop-blur-md px-space-sm py-space-xs rounded">
+            Scale: 1m grid / 6.0m Ring
+          </div>
+</div>
+</div>
+<!-- Ring Control Split Ratio Bar -->
+<div class="mt-space-md bg-surface-container p-space-md rounded">
+<div class="flex items-center justify-between font-label-caps text-label-caps mb-space-xs">
+<div class="flex items-center gap-space-xs text-primary">
+<span>RING CENTER CONTROL</span>
+<span class="font-bold">62.4%</span>
+</div>
+<div class="text-outline uppercase">Dominance Delta: +24.8% Red</div>
+<div class="flex items-center gap-space-xs text-secondary">
+<span class="font-bold">37.6%</span>
+<span>CHASE / PERIMETER</span>
+</div>
+</div>
+<div class="w-full h-3 bg-surface-container-highest rounded overflow-hidden flex">
+<div class="h-full bg-primary-container rounded-l transition-all duration-500" style="width: 62.4%;"></div>
+<div class="h-full bg-secondary rounded-r transition-all duration-500" style="width: 37.6%;"></div>
+</div>
+</div>
+</div>
+<!-- Right: Footwork Kinematics & Spatial Metrics -->
+<div class="xl:col-span-5 flex flex-col gap-space-md">
+<!-- 4-Stat Metric Card Cluster -->
+<div class="grid grid-cols-2 gap-space-md">
+<!-- Circling Metric -->
+<div class="bg-surface-container-low p-space-md rounded shadow-sm">
+<div class="flex items-center justify-between text-outline font-label-caps text-label-caps mb-space-xs">
+<span>CLOCKWISE CIRCLING</span>
+<span class="text-primary font-bold">+39.2%</span>
+</div>
+<div class="flex items-baseline gap-space-xs">
+<span class="font-telemetry-metric-lg text-telemetry-metric-lg text-primary font-bold">38.3</span>
+<span class="font-label-data text-label-data text-outline">m Red</span>
+<span class="text-surface-variant font-label-data text-label-data">/</span>
+<span class="font-telemetry-metric-md text-telemetry-metric-md text-secondary">27.5</span>
+<span class="font-label-data text-label-data text-outline">m</span>
+</div>
+<div class="mt-space-sm flex items-center justify-between font-label-data text-label-data text-outline">
+<span>Counter-CW: 13.5m</span>
+<span>vs 15.0m Blue</span>
+</div>
+</div>
+<!-- Lateral Motion Share -->
+<div class="bg-surface-container-low p-space-md rounded shadow-sm">
+<div class="flex items-center justify-between text-outline font-label-caps text-label-caps mb-space-xs">
+<span>TANGENTIAL / LATERAL</span>
+<span class="text-secondary font-bold">Balanced</span>
+</div>
+<div class="flex items-baseline gap-space-xs">
+<span class="font-telemetry-metric-lg text-telemetry-metric-lg text-on-surface font-bold">46.6%</span>
+<span class="font-label-data text-label-data text-primary font-bold">RED</span>
+<span class="text-surface-variant font-label-data text-label-data">/</span>
+<span class="font-telemetry-metric-md text-telemetry-metric-md text-secondary font-bold">44.4%</span>
+</div>
+<div class="mt-space-sm flex items-center justify-between font-label-data text-label-data text-outline">
+<span>Linear Rush Red: 53.4%</span>
+<span>Blue: 55.6%</span>
+</div>
+</div>
+<!-- Corner Pressure Trapping -->
+<div class="bg-surface-container-low p-space-md rounded shadow-sm">
+<div class="flex items-center justify-between text-outline font-label-caps text-label-caps mb-space-xs">
+<span>CORNER TRAP TIME</span>
+<span class="text-tertiary font-bold">Low Hazard</span>
+</div>
+<div class="flex items-baseline gap-space-xs">
+<span class="font-telemetry-metric-lg text-telemetry-metric-lg text-primary font-bold">0:14</span>
+<span class="font-label-data text-label-data text-outline">s Red</span>
+<span class="text-surface-variant font-label-data text-label-data">/</span>
+<span class="font-telemetry-metric-md text-telemetry-metric-md text-secondary">0:49</span>
+<span class="font-label-data text-label-data text-outline">s Blue</span>
+</div>
+<div class="mt-space-sm font-label-data text-label-data text-outline">
+            Red Rope pinned: <span class="text-on-surface">3.8%</span> total bout time
+          </div>
+</div>
+<!-- Angle Cuts Telemetry -->
+<div class="bg-surface-container-low p-space-md rounded shadow-sm">
+<div class="flex items-center justify-between text-outline font-label-caps text-label-caps mb-space-xs">
+<span>TOTAL ANGLE CUTS</span>
+<span class="text-primary font-bold">+60.0% Red</span>
+</div>
+<div class="flex items-baseline gap-space-xs">
+<span class="font-telemetry-metric-lg text-telemetry-metric-lg text-primary font-bold">24</span>
+<span class="font-label-data text-label-data text-outline">cuts</span>
+<span class="text-surface-variant font-label-data text-label-data">/</span>
+<span class="font-telemetry-metric-md text-telemetry-metric-md text-secondary">15</span>
+<span class="font-label-data text-label-data text-outline">cuts Blue</span>
+</div>
+<div class="mt-space-sm font-label-data text-label-data text-outline">
+            Avg Entry: <span class="text-primary font-bold">-14.6°</span> vs <span class="text-secondary">-2.1°</span>
+</div>
+</div>
+</div>
+<!-- Distance & Range Pocket Distribution -->
+<div class="bg-surface-container-low p-space-md rounded shadow-sm flex flex-col justify-between flex-1">
+<div class="flex items-center justify-between mb-space-sm">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-tertiary text-[18px]">straighten</span>
+<span class="font-headline-sm text-headline-sm text-on-surface uppercase">Pocket &amp; Engagement Ranges</span>
+</div>
+<span class="font-label-data text-label-data text-outline">Total Engaged: 5:48</span>
+</div>
+<!-- Range Visual Progress Modules -->
+<div class="space-y-space-sm">
+<!-- Clinch Range -->
+<div>
+<div class="flex items-center justify-between font-label-data text-label-data mb-space-xs">
+<span class="text-outline">Clinch &amp; Smother Range (&lt; 0.85m)</span>
+<span class="text-on-surface font-label-caps text-label-caps font-semibold">10.6% (0:36)</span>
+</div>
+<div class="w-full h-2 bg-surface-container rounded overflow-hidden">
+<div class="h-full bg-outline-variant rounded" style="width: 10.6%;"></div>
+</div>
+</div>
+<!-- Pocket Range (Crucial Arena) -->
+<div>
+<div class="flex items-center justify-between font-label-data text-label-data mb-space-xs">
+<span class="text-primary font-semibold">Primary Pocket Danger Zone (0.85m – 1.35m)</span>
+<span class="text-primary font-label-caps text-label-caps font-bold">49.3% (2:52)</span>
+</div>
+<div class="w-full h-2.5 bg-surface-container rounded overflow-hidden">
+<div class="h-full bg-primary-container rounded" style="width: 49.3%;"></div>
+</div>
+<div class="flex justify-between items-center text-[10px] font-label-data text-outline mt-0.5">
+<span>Red landed: 68.4% power strikes here</span>
+<span>Blue threw: 78.1% of hooks here</span>
+</div>
+</div>
+<!-- Outside Range -->
+<div>
+<div class="flex items-center justify-between font-label-data text-label-data mb-space-xs">
+<span class="text-secondary font-semibold">Outside / Range Reset (&gt; 1.35m)</span>
+<span class="text-secondary font-label-caps text-label-caps font-semibold">40.1% (2:20)</span>
+</div>
+<div class="w-full h-2 bg-surface-container rounded overflow-hidden">
+<div class="h-full bg-secondary-container rounded" style="width: 40.1%;"></div>
+</div>
+</div>
+</div>
+<!-- Angle Cut Tactical Schematic Diagram -->
+<div class="mt-space-md p-space-sm bg-surface-container-lowest rounded flex items-center justify-between gap-space-md">
+<div class="flex flex-col">
+<span class="font-label-caps text-label-caps text-tertiary font-bold uppercase">Tactical Dynamic Insight</span>
+<p class="font-body-sm text-body-sm text-outline mt-0.5">
+              thucar executed sharp outward 45° pivots upon Kowalski's linear forward charges, reducing Kowalski's square contact rate to <span class="text-primary font-bold">31.4%</span>.
+            </p>
+</div>
+<div class="shrink-0 text-right">
+<div class="font-label-caps text-label-caps text-outline">EXIT ANGLE</div>
+<div class="font-telemetry-metric-md text-telemetry-metric-md text-on-surface font-bold">-0.8°</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Section 3: Head Movement & Centerline Evasion Biomechanics -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-space-gutter-desktop mb-space-lg">
+<!-- 3D Frontal Cross-Section Head Displacement Visualizer -->
+<div class="lg:col-span-6 bg-surface-container-low p-space-lg rounded shadow-md flex flex-col justify-between">
+<div class="flex items-center justify-between mb-space-md">
+<div class="flex items-center gap-space-sm">
+<span class="material-symbols-outlined text-primary text-[20px]">airline_seat_recline_extra</span>
+<span class="font-headline-sm text-headline-sm text-on-surface uppercase">Centerline &amp; Head Trajectory Cross-Section</span>
+</div>
+<span class="font-label-caps text-label-caps text-outline bg-surface-container px-space-sm py-space-xs rounded">CORONAL PLANE (Z/X)</span>
+</div>
+<!-- Centerline SVG Graphical Diagram -->
+<div class="relative w-full h-64 bg-surface-container-lowest rounded flex items-center justify-center p-space-md overflow-hidden">
+<svg class="w-full h-full" viewbox="0 0 460 220">
+<defs>
+<lineargradient id="centerline-grad" x1="0" x2="0" y1="0" y2="1">
+<stop offset="0%" stop-color="#ffb95f" stop-opacity="0.8"></stop>
+<stop offset="100%" stop-color="#ffb95f" stop-opacity="0.0"></stop>
+</lineargradient>
+</defs>
+<!-- Neutral Vertical Centerline Axis -->
+<line class="text-tertiary/70" stroke="currentColor" stroke-dasharray="4 4" stroke-width="1.5" x1="230" x2="230" y1="20" y2="200"></line>
+<text class="text-tertiary font-label-caps text-[9px]" fill="currentColor" x="235" y="32">CENTERLINE (0.00m)</text>
+<!-- Height Reference Ticks -->
+<line class="text-surface-variant/40" stroke="currentColor" stroke-width="0.5" x1="40" x2="420" y1="50" y2="50"></line>
+<text class="text-outline font-label-data text-[9px]" fill="currentColor" x="44" y="46">1.85m STANDING APEX</text>
+<line class="text-surface-variant/40" stroke="currentColor" stroke-width="0.5" x1="40" x2="420" y1="120" y2="120"></line>
+<text class="text-outline font-label-data text-[9px]" fill="currentColor" x="44" y="116">1.65m CROUCH / SLIP</text>
+<line class="text-surface-variant/40" stroke="currentColor" stroke-width="0.5" x1="40" x2="420" y1="180" y2="180"></line>
+<text class="text-outline font-label-data text-[9px]" fill="currentColor" x="44" y="176">1.37m FULL DUCK / ROLL</text>
+<!-- Red Head Movement Boundary (Upright, Tight Slip Envelope) -->
+<!-- thucar: Median Lateral Slip = 0.05m, P90 = 0.09m, Height Delta = 0.31m -->
+<ellipse class="text-primary-container/20" cx="232" cy="70" fill="currentColor" rx="28" ry="32"></ellipse>
+<ellipse class="text-primary-container/40" cx="232" cy="70" fill="currentColor" rx="14" ry="16"></ellipse>
+<circle class="text-primary" cx="232" cy="70" fill="currentColor" r="5"></circle>
+<text class="text-primary font-label-caps text-[10px] font-bold" fill="currentColor" x="200" y="98">thucar [Δ 0.31m]</text>
+<!-- Blue Head Movement Boundary (Extravagant Bob & Weave Envelope) -->
+<!-- Kowalski: Median Lateral Slip = 0.07m, P90 = 0.18m, Height Delta = 0.48m -->
+<ellipse class="text-secondary/60" cx="230" cy="130" fill="none" rx="85" ry="55" stroke="currentColor" stroke-dasharray="3 3" stroke-width="1.5"></ellipse>
+<circle class="text-secondary" cx="180" cy="140" fill="currentColor" r="4"></circle>
+<circle class="text-secondary" cx="280" cy="135" fill="currentColor" r="4"></circle>
+<circle class="text-secondary" cx="230" cy="170" fill="currentColor" r="4"></circle>
+<!-- Slip Trajectory Spline -->
+<path class="text-secondary" d="M 170 110 C 180 175, 280 175, 290 110" fill="none" stroke="currentColor" stroke-width="2"></path>
+<text class="text-secondary font-label-caps text-[10px] font-bold" fill="currentColor" x="285" y="165">Kowalski [Δ 0.48m]</text>
+<!-- Metric Annotation Pins -->
+<line class="text-primary" stroke="currentColor" stroke-width="1" x1="232" x2="260" y1="70" y2="70"></line>
+<text class="text-on-surface font-label-data text-[9px]" fill="currentColor" x="264" y="73">Lat. P90: 0.09m</text>
+<line class="text-secondary" stroke="currentColor" stroke-width="1" x1="290" x2="330" y1="135" y2="135"></line>
+<text class="text-on-surface font-label-data text-[9px]" fill="currentColor" x="334" y="138">Lat. P90: 0.18m</text>
+</svg>
+<div class="absolute top-2 right-2 bg-surface-container-high/80 px-space-xs py-0.5 rounded font-label-data text-[10px] text-outline">
+          Tracking Std Dev: ±0.008m
+        </div>
+</div>
+<!-- Comparative Centerline Metrics Matrix -->
+<div class="mt-space-md grid grid-cols-3 gap-space-sm text-center">
+<div class="bg-surface-container p-space-sm rounded">
+<div class="font-label-caps text-label-caps text-outline">HEAD HEIGHT SPAN</div>
+<div class="font-telemetry-metric-md text-telemetry-metric-md text-primary font-bold">0.31 <span class="font-label-data text-label-data text-outline">m</span></div>
+<div class="font-label-data text-label-data text-secondary mt-0.5">vs 0.48m Blue</div>
+</div>
+<div class="bg-surface-container p-space-sm rounded">
+<div class="font-label-caps text-label-caps text-outline">MEDIAN LATERAL SLIP</div>
+<div class="font-telemetry-metric-md text-telemetry-metric-md text-primary font-bold">0.05 <span class="font-label-data text-label-data text-outline">m</span></div>
+<div class="font-label-data text-label-data text-secondary mt-0.5">vs 0.07m Blue</div>
+</div>
+<div class="bg-surface-container p-space-sm rounded">
+<div class="font-label-caps text-label-caps text-outline">P90 PEAK SLIP</div>
+<div class="font-telemetry-metric-md text-telemetry-metric-md text-primary font-bold">0.09 <span class="font-label-data text-label-data text-outline">m</span></div>
+<div class="font-label-data text-label-data text-secondary mt-0.5">vs 0.18m Blue</div>
+</div>
+</div>
+</div>
+<!-- Defensive Evasion Maneuvers & Slip Rate Under Fire -->
+<div class="lg:col-span-6 flex flex-col justify-between gap-space-md">
+<!-- Off-Centerline State Under Fire -->
+<div class="bg-surface-container-low p-space-lg rounded shadow-md">
+<div class="flex items-center justify-between mb-space-sm">
+<div class="flex items-center gap-space-sm">
+<span class="material-symbols-outlined text-secondary text-[20px]">crisis_alert</span>
+<span class="font-headline-sm text-headline-sm text-on-surface uppercase">Centerline Discipline Under Fire</span>
+</div>
+<span class="font-label-caps text-label-caps text-tertiary bg-on-tertiary-container/30 px-space-xs rounded font-semibold">IK Validated</span>
+</div>
+<div class="grid grid-cols-2 gap-space-md mt-space-md">
+<!-- While Under Incoming Fire -->
+<div class="bg-surface-container p-space-md rounded">
+<span class="font-label-caps text-label-caps text-outline block mb-space-xs">OFF-CENTERLINE (UNDER FIRE)</span>
+<div class="flex items-baseline justify-between">
+<span class="font-telemetry-metric-lg text-telemetry-metric-lg text-primary font-bold">6.7%</span>
+<span class="font-telemetry-metric-md text-telemetry-metric-md text-secondary font-bold">40.4%</span>
+</div>
+<div class="w-full h-1.5 bg-surface-container-highest rounded mt-space-xs flex">
+<div class="h-full bg-primary-container" style="width: 14.2%;"></div>
+<div class="h-full bg-secondary" style="width: 85.8%;"></div>
+</div>
+<p class="font-body-sm text-body-sm text-outline mt-space-xs">
+              thucar relied on parries &amp; lean-backs, while Kowalski ducked aggressively.
+            </p>
+</div>
+<!-- While Punching Evasion -->
+<div class="bg-surface-container p-space-md rounded">
+<span class="font-label-caps text-label-caps text-outline block mb-space-xs">OFF-CENTERLINE (WHILE PUNCHING)</span>
+<div class="flex items-baseline justify-between">
+<span class="font-telemetry-metric-lg text-telemetry-metric-lg text-primary font-bold">6.3%</span>
+<span class="font-telemetry-metric-md text-telemetry-metric-md text-secondary font-bold">40.5%</span>
+</div>
+<div class="w-full h-1.5 bg-surface-container-highest rounded mt-space-xs flex">
+<div class="h-full bg-primary-container" style="width: 13.5%;"></div>
+<div class="h-full bg-secondary" style="width: 86.5%;"></div>
+</div>
+<p class="font-body-sm text-body-sm text-outline mt-space-xs">
+              Kowalski repeatedly overhand-lunged 40cm off-axis into counter hooks.
+            </p>
+</div>
+</div>
+<!-- Bob-and-Weaves & Ducks Counter Comparison -->
+<div class="mt-space-md bg-surface-container-lowest p-space-md rounded flex items-center justify-between">
+<div class="flex items-center gap-space-lg">
+<div>
+<span class="font-label-caps text-label-caps text-outline block">DUCKS COUNT</span>
+<div class="flex items-center gap-space-xs mt-0.5">
+<span class="font-telemetry-metric-md text-telemetry-metric-md text-primary font-bold">2</span>
+<span class="font-label-data text-label-data text-outline">vs</span>
+<span class="font-telemetry-metric-md text-telemetry-metric-md text-secondary font-bold">34</span>
+</div>
+</div>
+<div class="h-8 w-[1px] bg-surface-container-highest"></div>
+<div>
+<span class="font-label-caps text-label-caps text-outline block">BOB &amp; WEAVES</span>
+<div class="flex items-center gap-space-xs mt-0.5">
+<span class="font-telemetry-metric-md text-telemetry-metric-md text-primary font-bold">1</span>
+<span class="font-label-data text-label-data text-outline">vs</span>
+<span class="font-telemetry-metric-md text-telemetry-metric-md text-secondary font-bold">32</span>
+</div>
+</div>
+</div>
+<div class="text-right">
+<span class="font-label-caps text-label-caps text-outline">TRUNK DROP IQR</span>
+<div class="font-telemetry-metric-md text-telemetry-metric-md text-on-surface font-bold">0.08m <span class="text-outline font-label-data">/ 0.26m</span></div>
+</div>
+</div>
+</div>
+<!-- Micro-Note on Biomechanical Efficiency -->
+<div class="bg-surface-container-low p-space-md rounded flex items-center gap-space-md">
+<div class="w-10 h-10 rounded bg-tertiary-container/30 flex items-center justify-center text-tertiary shrink-0">
+<span class="material-symbols-outlined text-[22px]">bolt</span>
+</div>
+<div class="flex-1">
+<div class="flex items-center justify-between">
+<span class="font-label-caps text-label-caps text-tertiary font-bold uppercase">Energy Expenditure Differential</span>
+<span class="font-label-data text-label-data text-outline">Work Rate Proxy</span>
+</div>
+<p class="font-body-sm text-body-sm text-outline mt-0.5">
+            Kowalski performed 66 high-amplitude head evasions vs thucar's 3, resulting in 42% faster cardiac surge rate in Round 3.
+          </p>
+</div>
+</div>
+</div>
+</div>
+<!-- Section 4: Stance Geometry & Kinetic Blade Alignment -->
+<div class="grid grid-cols-1 xl:grid-cols-12 gap-space-gutter-desktop mb-space-lg">
+<!-- Left: Angular Blade Alignment Card -->
+<div class="xl:col-span-8 bg-surface-container-low p-space-lg rounded shadow-md">
+<div class="flex items-center justify-between mb-space-md">
+<div class="flex items-center gap-space-sm">
+<span class="material-symbols-outlined text-secondary text-[20px]">architecture</span>
+<span class="font-headline-sm text-headline-sm text-on-surface uppercase">Stance Geometry &amp; Blade Orientation</span>
+</div>
+<span class="font-label-caps text-label-caps text-outline bg-surface-container px-space-sm py-space-xs rounded">SHOULDER &amp; FOOT BLADING</span>
+</div>
+<!-- Graphical Stance Visualizer -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-space-md">
+<!-- Shoulder Blade Comparison -->
+<div class="bg-surface-container p-space-md rounded flex flex-col justify-between">
+<div class="flex items-center justify-between mb-space-sm">
+<span class="font-label-caps text-label-caps text-outline">SHOULDER BLADE ANGLE</span>
+<span class="font-label-data text-label-data text-primary font-bold">+10.5° Bladed Red</span>
+</div>
+<div class="flex items-center justify-center py-space-md">
+<svg class="w-48 h-28" viewbox="0 0 200 120">
+<!-- Center Axis Line -->
+<line class="text-surface-variant" stroke="currentColor" stroke-dasharray="2 2" stroke-width="1" x1="20" x2="180" y1="60" y2="60"></line>
+<!-- Red Shoulder Axis (28.7°) -->
+<line class="text-primary-container" stroke="currentColor" stroke-width="3" x1="40" x2="160" y1="85" y2="35"></line>
+<circle class="text-primary-container" cx="40" cy="85" fill="currentColor" r="4"></circle>
+<circle class="text-primary-container" cx="160" cy="35" fill="currentColor" r="4"></circle>
+<text class="text-primary font-label-data text-[10px] font-bold" fill="currentColor" x="165" y="32">28.7° (RED)</text>
+<!-- Blue Shoulder Axis (18.2°) -->
+<line class="text-secondary" stroke="currentColor" stroke-dasharray="4 2" stroke-width="2" x1="45" x2="155" y1="75" y2="45"></line>
+<circle class="text-secondary" cx="45" cy="75" fill="currentColor" r="3"></circle>
+<circle class="text-secondary" cx="155" cy="45" fill="currentColor" r="3"></circle>
+<text class="text-secondary font-label-data text-[10px] font-bold" fill="currentColor" x="160" y="58">18.2° (BLUE)</text>
+</svg>
+</div>
+<div class="font-body-sm text-body-sm text-outline mt-space-xs">
+            thucar maintains a narrow profile reducing head target cross-section by 18.4%.
+          </div>
+</div>
+<!-- Foot Blade Comparison -->
+<div class="bg-surface-container p-space-md rounded flex flex-col justify-between">
+<div class="flex items-center justify-between mb-space-sm">
+<span class="font-label-caps text-label-caps text-outline">FOOT BLADE ANGLE</span>
+<span class="font-label-data text-label-data text-secondary font-bold">+16.4° Square Blue</span>
+</div>
+<div class="flex items-center justify-center py-space-md">
+<svg class="w-48 h-28" viewbox="0 0 200 120">
+<line class="text-surface-variant" stroke="currentColor" stroke-dasharray="2 2" stroke-width="1" x1="20" x2="180" y1="60" y2="60"></line>
+<!-- Red Foot Angle (37.8°) -->
+<line class="text-primary-container" stroke="currentColor" stroke-width="3" x1="50" x2="150" y1="92" y2="28"></line>
+<text class="text-primary font-label-data text-[10px] font-bold" fill="currentColor" x="145" y="24">37.8° (RED)</text>
+<!-- Blue Foot Angle (54.2° - More Squaring) -->
+<line class="text-secondary" stroke="currentColor" stroke-dasharray="4 2" stroke-width="2" x1="60" x2="140" y1="105" y2="15"></line>
+<text class="text-secondary font-label-data text-[10px] font-bold" fill="currentColor" x="145" y="44">54.2° (BLUE)</text>
+</svg>
+</div>
+<div class="font-body-sm text-body-sm text-outline mt-space-xs">
+            Kowalski sets feet wider apart (54.2°) to generate maximum hook torque.
+          </div>
+</div>
+</div>
+<!-- Lead Left vs Square Stance Distribution -->
+<div class="mt-space-md bg-surface-container-lowest p-space-md rounded">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-space-lg">
+<div>
+<div class="flex justify-between font-label-data text-label-data mb-space-xs">
+<span class="text-outline">Lead Left Stance Time</span>
+<span class="text-primary font-bold">69.1% Red vs 40.0% Blue</span>
+</div>
+<div class="w-full h-2 bg-surface-container rounded overflow-hidden flex">
+<div class="h-full bg-primary-container" style="width: 69.1%;"></div>
+<div class="h-full bg-surface-container-high" style="width: 30.9%;"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between font-label-data text-label-data mb-space-xs">
+<span class="text-outline">Square Stance While Punching</span>
+<span class="text-secondary font-bold">31.4% Red vs 49.5% Blue</span>
+</div>
+<div class="w-full h-2 bg-surface-container rounded overflow-hidden flex">
+<div class="h-full bg-surface-container-high" style="width: 50.5%;"></div>
+<div class="h-full bg-secondary" style="width: 49.5%;"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Right: Guard Discipline & Hand Return Rigor -->
+<div class="xl:col-span-4 bg-surface-container-low p-space-lg rounded shadow-md flex flex-col justify-between">
+<div>
+<div class="flex items-center justify-between mb-space-md">
+<div class="flex items-center gap-space-sm">
+<span class="material-symbols-outlined text-primary text-[20px]">shield</span>
+<span class="font-headline-sm text-headline-sm text-on-surface uppercase">Guard Integrity</span>
+</div>
+<span class="font-label-caps text-label-caps text-primary bg-on-primary-container px-space-xs rounded">thucar</span>
+</div>
+<div class="space-y-space-md">
+<!-- Off-hand kept high while throwing lead left -->
+<div class="bg-surface-container p-space-md rounded">
+<div class="flex items-center justify-between font-label-caps text-label-caps text-outline mb-space-xs">
+<span>HIGH GUARD RETENTION (LEAD JAB)</span>
+<span class="text-primary font-bold">56.4%</span>
+</div>
+<div class="w-full h-2 bg-surface-container-highest rounded overflow-hidden">
+<div class="h-full bg-primary-container" style="width: 56.4%;"></div>
+</div>
+<p class="font-body-sm text-body-sm text-outline mt-space-xs">
+              Rear hand pinned to zygomatic bone during 56.4% of jab extensions.
+            </p>
+</div>
+<!-- Off-hand kept while throwing rear power right -->
+<div class="bg-surface-container p-space-md rounded">
+<div class="flex items-center justify-between font-label-caps text-label-caps text-outline mb-space-xs">
+<span>HIGH GUARD RETENTION (REAR CROSS)</span>
+<span class="text-error font-bold">0.0% [EXPOSED]</span>
+</div>
+<div class="w-full h-2 bg-surface-container-highest rounded overflow-hidden">
+<div class="h-full bg-error" style="width: 2%;"></div>
+</div>
+<p class="font-body-sm text-body-sm text-outline mt-space-xs">
+              Vulnerability alert: Lead hand drops completely to waist level when throwing 2.
+            </p>
+</div>
+<!-- Median Hand Return Latency -->
+<div class="bg-surface-container p-space-md rounded flex items-center justify-between">
+<div>
+<span class="font-label-caps text-label-caps text-outline block">MEDIAN HAND RETURN TIME</span>
+<div class="font-telemetry-metric-lg text-telemetry-metric-lg text-on-surface font-bold">142 <span class="text-outline font-label-data">ms</span></div>
+</div>
+<div class="text-right">
+<span class="font-label-caps text-label-caps text-outline block">RETURN DROOP</span>
+<div class="font-telemetry-metric-lg text-telemetry-metric-lg text-primary font-bold">0.01 <span class="text-outline font-label-data">m</span></div>
+</div>
+</div>
+</div>
+</div>
+<div class="mt-space-md pt-space-sm flex items-center gap-space-xs font-label-data text-label-data text-outline">
+<span class="material-symbols-outlined text-[16px] text-secondary">verified</span>
+<span>Kinematic Confidence: 98.7% across 488 total punches</span>
+</div>
+</div>
+</div>
+<!-- Section 5: Biomechanics Key Log & Anomaly Inspector -->
+<div class="bg-surface-container-low p-space-lg rounded shadow-md">
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-space-md mb-space-md">
+<div class="flex items-center gap-space-sm">
+<span class="material-symbols-outlined text-secondary text-[20px]">list_alt</span>
+<h2 class="font-headline-sm text-headline-sm text-on-surface uppercase">Spatial Movement Event Stream &amp; Tactical Log</h2>
+</div>
+<!-- Quick Category Filter Chips -->
+<div class="flex items-center gap-space-xs flex-wrap font-label-caps text-label-caps">
+<span class="text-outline uppercase text-[10px] mr-space-xs">Filter Events:</span>
+<button class="px-space-sm py-space-xs rounded bg-surface-bright text-on-surface font-semibold">ALL (46)</button>
+<button class="px-space-sm py-space-xs rounded bg-surface-container hover:bg-surface-container-high text-primary transition-colors">Angle Cuts (24)</button>
+<button class="px-space-sm py-space-xs rounded bg-surface-container hover:bg-surface-container-high text-secondary transition-colors">Ducks &amp; Weaves (35)</button>
+<button class="px-space-sm py-space-xs rounded bg-surface-container hover:bg-surface-container-high text-tertiary transition-colors">Pocket Exits (12)</button>
+</div>
+</div>
+<!-- Telemetry Table -->
+<div class="overflow-x-auto">
+<table class="w-full text-left font-label-data text-label-data">
+<thead>
+<tr class="bg-surface-container text-outline font-label-caps text-label-caps uppercase">
+<th class="py-space-sm px-space-md">TIMESTAMP</th>
+<th class="py-space-sm px-space-md">CORNER</th>
+<th class="py-space-sm px-space-md">KINEMATIC EVENT</th>
+<th class="py-space-sm px-space-md">ANGULAR DELTA</th>
+<th class="py-space-sm px-space-md">HEAD Z-DROP</th>
+<th class="py-space-sm px-space-md">OPPONENT DISPLACEMENT</th>
+<th class="py-space-sm px-space-md">TACTICAL OUTCOME</th>
+<th class="py-space-sm px-space-md text-right">IK QUALITY</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-surface-container">
+<!-- Event 1 -->
+<tr class="hover:bg-surface-container-high/60 transition-colors">
+<td class="py-space-sm px-space-md text-on-surface font-semibold">R1 01:42.3</td>
+<td class="py-space-sm px-space-md">
+<span class="bg-on-primary-container text-primary font-label-caps text-[10px] px-space-xs py-0.5 rounded font-bold">RED</span>
+</td>
+<td class="py-space-sm px-space-md text-on-surface font-medium">Sharp Outside Angle Cut</td>
+<td class="py-space-sm px-space-md text-primary font-bold">-18.4° (Exit)</td>
+<td class="py-space-sm px-space-md text-outline">0.04m (Minimal)</td>
+<td class="py-space-sm px-space-md text-secondary">+1.24m Forward Rush</td>
+<td class="py-space-sm px-space-md">
+<span class="text-primary bg-primary-container/10 px-space-xs py-0.5 rounded font-label-caps text-[10px]">Clean Counter 2 Landed</span>
+</td>
+<td class="py-space-sm px-space-md text-right text-secondary">99.8%</td>
+</tr>
+<!-- Event 2 -->
+<tr class="hover:bg-surface-container-high/60 transition-colors">
+<td class="py-space-sm px-space-md text-on-surface font-semibold">R1 01:14.8</td>
+<td class="py-space-sm px-space-md">
+<span class="bg-on-secondary-container text-secondary font-label-caps text-[10px] px-space-xs py-0.5 rounded font-bold">BLUE</span>
+</td>
+<td class="py-space-sm px-space-md text-on-surface font-medium">Deep Bob &amp; Weave Slip</td>
+<td class="py-space-sm px-space-md text-outline">+3.2° (Linear)</td>
+<td class="py-space-sm px-space-md text-secondary font-bold">0.42m (Deep Trunk)</td>
+<td class="py-space-sm px-space-md text-primary">0.12m Step Back</td>
+<td class="py-space-sm px-space-md">
+<span class="text-tertiary bg-tertiary-container/10 px-space-xs py-0.5 rounded font-label-caps text-[10px]">Overhand Whiffed</span>
+</td>
+<td class="py-space-sm px-space-md text-right text-secondary">99.1%</td>
+</tr>
+<!-- Event 3 -->
+<tr class="hover:bg-surface-container-high/60 transition-colors">
+<td class="py-space-sm px-space-md text-on-surface font-semibold">R2 01:51.0</td>
+<td class="py-space-sm px-space-md">
+<span class="bg-on-primary-container text-primary font-label-caps text-[10px] px-space-xs py-0.5 rounded font-bold">RED</span>
+</td>
+<td class="py-space-sm px-space-md text-on-surface font-medium">Clockwise Pivot &amp; Disengage</td>
+<td class="py-space-sm px-space-md text-primary font-bold">-24.1° (Pivot)</td>
+<td class="py-space-sm px-space-md text-outline">0.02m</td>
+<td class="py-space-sm px-space-md text-secondary">+0.88m Clenched</td>
+<td class="py-space-sm px-space-md">
+<span class="text-secondary bg-secondary/10 px-space-xs py-0.5 rounded font-label-caps text-[10px]">Corner Escape</span>
+</td>
+<td class="py-space-sm px-space-md text-right text-secondary">99.6%</td>
+</tr>
+<!-- Event 4 -->
+<tr class="hover:bg-surface-container-high/60 transition-colors">
+<td class="py-space-sm px-space-md text-on-surface font-semibold">R2 00:33.4</td>
+<td class="py-space-sm px-space-md">
+<span class="bg-on-secondary-container text-secondary font-label-caps text-[10px] px-space-xs py-0.5 rounded font-bold">BLUE</span>
+</td>
+<td class="py-space-sm px-space-md text-on-surface font-medium">Forward Crouch Charge</td>
+<td class="py-space-sm px-space-md text-outline">-1.1°</td>
+<td class="py-space-sm px-space-md text-secondary font-bold">0.38m</td>
+<td class="py-space-sm px-space-md text-primary">0.00m (Pocket Locked)</td>
+<td class="py-space-sm px-space-md">
+<span class="text-error bg-error/10 px-space-xs py-0.5 rounded font-label-caps text-[10px]">Intercepted by Upper</span>
+</td>
+<td class="py-space-sm px-space-md text-right text-secondary">98.4%</td>
+</tr>
+<!-- Event 5 -->
+<tr class="hover:bg-surface-container-high/60 transition-colors">
+<td class="py-space-sm px-space-md text-on-surface font-semibold">R3 01:08.9</td>
+<td class="py-space-sm px-space-md">
+<span class="bg-on-primary-container text-primary font-label-caps text-[10px] px-space-xs py-0.5 rounded font-bold">RED</span>
+</td>
+<td class="py-space-sm px-space-md text-on-surface font-medium">Slip Left + Counter Lead Check</td>
+<td class="py-space-sm px-space-md text-primary font-bold">+12.2° Slip</td>
+<td class="py-space-sm px-space-md text-outline">0.07m</td>
+<td class="py-space-sm px-space-md text-secondary">-0.45m Stumble</td>
+<td class="py-space-sm px-space-md">
+<span class="text-primary bg-primary-container/10 px-space-xs py-0.5 rounded font-label-caps text-[10px]">Stun Score (Judge +1)</span>
+</td>
+<td class="py-space-sm px-space-md text-right text-secondary">99.9%</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Footer Meta: Device Hardware Pipeline Confidence -->
+<div class="mt-space-md pt-space-sm flex flex-col sm:flex-row sm:items-center justify-between gap-space-sm text-outline font-label-data text-label-data">
+<div class="flex items-center gap-space-md">
+<span>Hardware: Oculus Quest Pro Inside-Out IK</span>
+<span>•</span>
+<span>Sample Window: 46,200 ticks @ 90Hz</span>
+</div>
+<div class="flex items-center gap-space-xs text-secondary font-medium">
+<span class="material-symbols-outlined text-[16px]">check_circle</span>
+<span>IK Inverse Kinematics Solved with 0 Packet Drops</span>
+</div>
+</div>
+</div>
+</div>
+<script>
+  // Simple interactive switcher for Spatial Heatmap Layers
+  (function initSpatialHeatmapControls() {
+    const redLayer = document.getElementById('heatmap-layer-red');
+    const blueLayer = document.getElementById('heatmap-layer-blue');
+    const vectorLayer = document.getElementById('vector-layer');
+    
+    const btnAll = document.getElementById('layer-all');
+    const btnRed = document.getElementById('layer-red');
+    const btnBlue = document.getElementById('layer-blue');
+    const btnVector = document.getElementById('layer-vector');
+
+    if (!redLayer || !blueLayer || !btnAll) return;
+
+    function resetButtons() {
+      [btnAll, btnRed, btnBlue, btnVector].forEach(btn => {
+        if (!btn) return;
+        btn.classList.remove('bg-surface-bright', 'text-on-surface');
+        btn.classList.add('hover:bg-surface-container-high');
+      });
+    }
+
+    btnAll.addEventListener('click', () => {
+      resetButtons();
+      btnAll.classList.add('bg-surface-bright', 'text-on-surface');
+      redLayer.style.opacity = '0.9';
+      blueLayer.style.opacity = '0.8';
+      vectorLayer.style.opacity = '1.0';
+    });
+
+    btnRed.addEventListener('click', () => {
+      resetButtons();
+      btnRed.classList.add('bg-surface-bright', 'text-on-surface');
+      redLayer.style.opacity = '1.0';
+      blueLayer.style.opacity = '0.05';
+      vectorLayer.style.opacity = '0.8';
+    });
+
+    btnBlue.addEventListener('click', () => {
+      resetButtons();
+      btnBlue.classList.add('bg-surface-bright', 'text-on-surface');
+      redLayer.style.opacity = '0.05';
+      blueLayer.style.opacity = '1.0';
+      vectorLayer.style.opacity = '0.8';
+    });
+
+    btnVector.addEventListener('click', () => {
+      resetButtons();
+      btnVector.classList.add('bg-surface-bright', 'text-on-surface');
+      redLayer.style.opacity = '0.2';
+      blueLayer.style.opacity = '0.2';
+      vectorLayer.style.opacity = '1.0';
+    });
+  })();
+</script></main></div></body></html>

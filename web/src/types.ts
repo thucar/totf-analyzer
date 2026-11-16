@@ -35,6 +35,13 @@ export type FightAnalytics = {
     blue_total_score: number | null;
     rounds_scheduled: number;
     round_duration_sec: number;
+    break_duration_sec?: number;
+    ring_size_x_m?: number | null;
+    ring_size_z_m?: number | null;
+    fixed_timestep?: number;
+    start_tick?: number;
+    end_tick?: number;
+    created_utc?: string | null;
   };
   fighters: {
     corner: number;
