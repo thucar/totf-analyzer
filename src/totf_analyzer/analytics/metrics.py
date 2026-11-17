@@ -90,6 +90,10 @@ CONTACT_LOOKAHEAD_SEC = 0.033
 CONTACT_SMOOTH_TICKS = 3
 CONTACT_CLOSING_MIN = 4.0
 SAME_SWING_GRACE_SEC = 0.10
+# A slower contact record still counts when an official scored hit on the opponent, not already
+# explained by a counted punch, falls this close to its contact tick.
+SCORED_CONTACT_BEFORE_SEC = 0.025
+SCORED_CONTACT_AFTER_SEC = 0.05
 TARGET_JOINTS = (HEAD, CHEST, SPINE, HIPS)
 PUNISHMENT_LINK_TICKS = 48
 SPEED_BINS = (0.0, 6.0, 7.5, 8.5, 9.5, 12.0, 30.0)
@@ -823,6 +827,8 @@ def _validated_punches(session: ParsedSession) -> ParsedSession:
     A contact record is dropped when it is a second contact of a swing already kept on that hand,
     or when its glove was not closing on the opponent fast enough to be a strike
     (a block, a glove clash, a push, or a parry). Without skeleton frames it is kept.
+    A slow contact record is kept after all when an official scored hit that no kept punch
+    explains sits on its contact tick: the game scored that contact.
     """
     timestep = session.fixed_timestep
     grace = _tick_radius(SAME_SWING_GRACE_SEC, timestep)
@@ -839,6 +845,7 @@ def _validated_punches(session: ParsedSession) -> ParsedSession:
             if punch.kinematics:
                 swings[punch.hand_index].append((punch.launch_tick, punch.tick + grace))
         keep = [punch.kinematics for punch in track.punches]
+        slow: list[int] = []
         order = sorted(range(len(track.punches)), key=lambda index: (track.punches[index].launch_tick, index))
         for index in order:
             punch = track.punches[index]
@@ -848,15 +855,49 @@ def _validated_punches(session: ParsedSession) -> ParsedSession:
                 continue
             speed = speeds[index]
             if speed is not None and speed < CONTACT_CLOSING_MIN:
+                slow.append(index)
                 continue
             keep[index] = True
             swings[punch.hand_index].append((punch.launch_tick, punch.tick + grace))
+        if slow and opponent is not None and opponent is not track:
+            for index in _scored_contacts(track.punches, keep, slow, opponent.events, timestep):
+                keep[index] = True
         tracks[corner] = dataclass_replace(
             track,
             punches=[punch for punch, kept in zip(track.punches, keep) if kept],
             rejected_punches=[punch for punch, kept in zip(track.punches, keep) if not kept],
         )
     return dataclass_replace(session, tracks=tracks)
+
+
+def _scored_contacts(
+    punches: list[PunchRecord],
+    keep: list[bool],
+    slow: list[int],
+    opponent_events: list[EventRecord],
+    timestep: float,
+) -> list[int]:
+    """Slow contact records that sit on a scored hit no kept punch accounts for. One record per hit."""
+    hits = [event for event in opponent_events if event.scored_hit]
+    kept = [punch for punch, flag in zip(punches, keep) if flag]
+    explained = {id(event) for event in _match_punches(kept, hits).values()}
+    free = [event for event in hits if id(event) not in explained]
+    before = _tick_radius(SCORED_CONTACT_BEFORE_SEC, timestep)
+    after = _tick_radius(SCORED_CONTACT_AFTER_SEC, timestep)
+    pairs = sorted(
+        (abs(event.tick - punches[index].launch_tick), index, position)
+        for position, event in enumerate(free)
+        for index in slow
+        if -before <= event.tick - punches[index].launch_tick <= after
+    )
+    used: set[int] = set()
+    rescued: list[int] = []
+    for _delta, index, position in pairs:
+        if position in used or index in rescued:
+            continue
+        used.add(position)
+        rescued.append(index)
+    return rescued
 
 
 def _wrist_index(hand_index: int) -> int | None:
@@ -2727,6 +2768,8 @@ def _static_notes() -> list[DecodeNote]:
                 f"contact_thrown counts the contact records whose glove closed on the opponent's head or trunk at "
                 f"{CONTACT_CLOSING_MIN:.1f} m/s or more (3-tick mean) in the {CONTACT_LOOKBACK_SEC:.2f} s before the contact, "
                 f"and that do not fall inside a swing already counted on that hand or within {SAME_SWING_GRACE_SEC:.2f} s of its end. "
+                "A slower contact record also counts when an official scored hit that no counted punch explains falls "
+                f"from {SCORED_CONTACT_BEFORE_SEC:.3f} s before to {SCORED_CONTACT_AFTER_SEC:.2f} s after its contact tick. "
                 "discarded_records counts the contact records left out. "
                 "A track with no kinematic records (an AI opponent) only has contact records, "
                 "so a punch that touched nothing is not recorded and thrown undercounts its misses."

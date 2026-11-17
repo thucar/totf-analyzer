@@ -69,7 +69,7 @@ def test_official_scorecard(report):
     assert 30 < rnd.bell_sec < 40
     assert rnd.duration_sec < report.session.duration_sec
     by_round = {item.corner: item for item in rnd.offense}
-    assert by_round[1].thrown == 69
+    assert by_round[1].thrown == 70
     assert by_round[1].landed == rnd.red.hits == 33
     assert by_round[2].thrown == 24
     assert by_round[2].landed == rnd.blue.hits == 17
@@ -82,17 +82,17 @@ def test_official_scorecard(report):
 
 def test_cross_stream_metrics(report):
     by_corner = {item.corner: item for item in report.offense}
-    assert by_corner[1].thrown == 69
+    assert by_corner[1].thrown == 70
     assert by_corner[1].landed == 33
     assert by_corner[1].official_hits == 33
     assert by_corner[2].thrown == 24
     assert by_corner[2].landed == 17
     assert by_corner[2].official_hits == 17
-    assert by_corner[1].accuracy == pytest.approx(33 / 69)
+    assert by_corner[1].accuracy == pytest.approx(33 / 70)
     assert by_corner[2].accuracy == pytest.approx(17 / 24)
     red_hands = {row.hand: row for row in by_corner[1].hands}
     assert sum(row.landed for row in by_corner[1].hands) == 33
-    assert sum(row.thrown for row in by_corner[1].hands) == 69
+    assert sum(row.thrown for row in by_corner[1].hands) == 70
     assert {"left", "right"} <= set(red_hands)
     assert "hand_0" not in red_hands and "hand_1" not in red_hands
     assert by_corner[1].kinematic_thrown == 61
@@ -115,10 +115,10 @@ def test_contact_records_are_not_all_punches(report):
         assert offense.thrown + offense.discarded_records == recorded
         assert offense.combinations.max_combo_length <= 6
     by_corner = {item.corner: item for item in report.offense}
-    # The local player: every game-detected swing is kept, and 8 of 49 contact stamps are strikes.
+    # The local player: every game-detected swing is kept, and 9 of 49 contact stamps are strikes.
     assert by_corner[1].kinematic_thrown == 61
-    assert by_corner[1].contact_thrown == 8
-    assert by_corner[1].discarded_records == 41
+    assert by_corner[1].contact_thrown == 9
+    assert by_corner[1].discarded_records == 40
     assert 35 < by_corner[1].punches_per_minute < 45
     # The AI track only has contact stamps. Blocks and glove clashes are left out.
     assert by_corner[2].kinematic_thrown == 0
@@ -127,7 +127,8 @@ def test_contact_records_are_not_all_punches(report):
     assert sum(1 for punch in by_corner[2].punches if punch.landed) == 16
     thrown = next(note for note in report.decode_status if note.field == "offense.thrown")
     assert thrown.confidence == "inferred"
-    assert "4.0 m/s" in thrown.note and "discarded_records" in thrown.note
+    assert "4.0 m/s" in thrown.note and "scored hit" in thrown.note and "discarded_records" in thrown.note
+    assert sum(1 for punch in by_corner[1].punches if punch.landed) == 31
 
     defense = {item.corner: item for item in report.defense}
     for corner in (1, 2):
