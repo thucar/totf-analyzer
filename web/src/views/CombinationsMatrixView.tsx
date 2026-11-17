@@ -61,7 +61,7 @@ function buildComboInstances(offenseList: FightAnalytics["offense"]): SequencedC
       });
       const speeds = ordered.map((p) => p.speed).filter((s): s is number => s != null);
       const punishmentSum = ordered.reduce(
-        (acc, p) => acc + (p.landed && p.punishment_delta != null ? p.punishment_delta : 0),
+        (acc, p) => acc + (p.landed && p.damage != null ? p.damage : 0),
         0,
       );
       result.push({
@@ -137,12 +137,12 @@ export function CombinationsMatrixView({
     const cards = [
       ...(redCombos?.patterns.map((p) => ({ ...p, color: "red" as const, fighterName: redName })) ?? []),
       ...(blueCombos?.patterns.map((p) => ({ ...p, color: "blue" as const, fighterName: blueName })) ?? []),
-    ].filter((p) => p.count >= 2 || (p.mean_punishment_delta ?? 0) > 5);
+    ].filter((p) => p.count >= 2 || (p.mean_damage ?? 0) > 25);
 
     return cards
       .sort((a, b) => {
         if (sortBy === "punishment") {
-          return (b.mean_punishment_delta ?? 0) - (a.mean_punishment_delta ?? 0) || b.count - a.count;
+          return (b.mean_damage ?? 0) - (a.mean_damage ?? 0) || b.count - a.count;
         }
         if (sortBy === "accuracy") {
           return (b.accuracy ?? 0) - (a.accuracy ?? 0) || b.count - a.count;
@@ -160,7 +160,7 @@ export function CombinationsMatrixView({
       if (fighterFilter !== "all" && item.color !== fighterFilter) return false;
       if (outcomeFilter === "landed" && item.landed === 0) return false;
       if (outcomeFilter === "countered" && !item.counteredAny) return false;
-      if (outcomeFilter === "high_punish" && item.punishmentSum < 8) return false;
+      if (outcomeFilter === "high_punish" && item.punishmentSum < 40) return false;
       if (q) {
         const text = item.tokens.map(formatTokenLabel).join(" ").toLowerCase();
         if (!text.includes(q)) return false;
@@ -361,7 +361,7 @@ export function CombinationsMatrixView({
             </div>
           </div>
           <span className="font-label-data text-label-data text-outline">
-            Kinematic samples: {redOff?.velocity.samples ?? 0}R · {blueOff?.velocity.samples ?? 0}B
+            Speed samples: {redOff?.velocity.samples ?? 0}R · {blueOff?.velocity.samples ?? 0}B
           </span>
         </div>
       </div>
@@ -586,14 +586,14 @@ export function CombinationsMatrixView({
               </span>
             </div>
             <p className="font-body-sm text-body-sm text-outline m-0 mt-0.5">
-              Mean punishment step is summed across landed punches per pattern instance (not official damage).
+              Mean damage is summed across landed punches per pattern instance, from the hit events.
             </p>
           </div>
           <div className="flex items-center gap-space-xs">
             <span className="font-label-caps text-label-caps text-outline">SORT:</span>
             {(
               [
-                ["punishment", "Punishment Δ"],
+                ["punishment", "Damage"],
                 ["accuracy", "Accuracy %"],
                 ["volume", "Volume"],
               ] as const
@@ -660,14 +660,14 @@ export function CombinationsMatrixView({
                       </span>
                     </div>
                     <div>
-                      <span className="block font-label-caps text-label-caps text-outline">MEAN Δ</span>
+                      <span className="block font-label-caps text-label-caps text-outline">MEAN DMG</span>
                       <span className="font-telemetry-metric-sm text-tertiary">
-                        {num(card.mean_punishment_delta, 2)}
+                        {num(card.mean_damage, 2)}
                       </span>
                     </div>
                   </div>
                   <div className="bg-surface-container px-space-xs py-0.5 rounded text-center font-label-data text-label-data text-outline mt-1">
-                    {card.landed}/{card.thrown} punches landed · {num(card.mean_punishment_delta_landed, 2)} Δ / landed
+                    {card.landed}/{card.thrown} punches landed · {num(card.mean_damage_landed, 2)} dmg / landed
                   </div>
                 </div>
               </div>
@@ -808,7 +808,7 @@ export function CombinationsMatrixView({
             >
               <option value="all">All Outcomes</option>
               <option value="landed">At Least 1 Landed</option>
-              <option value="high_punish">Punishment &ge; 8.0</option>
+              <option value="high_punish">Damage &ge; 40</option>
               <option value="countered">Countered Entries</option>
             </select>
           </div>
@@ -824,7 +824,7 @@ export function CombinationsMatrixView({
                 <th className="p-space-sm">LENGTH</th>
                 <th className="p-space-sm">LANDED</th>
                 <th className="p-space-sm">PEAK SPEED</th>
-                <th className="p-space-sm text-right">PUNISHMENT Δ</th>
+                <th className="p-space-sm text-right">DAMAGE</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-container-highest/20">

@@ -164,6 +164,7 @@ def get_fighter_stats(
             "index": rnd.index,
             "completed": rnd.completed,
             "bell_sec": rnd.bell_sec,
+            "end_sec": rnd.end_sec,
             "duration_sec": rnd.duration_sec,
             **block.model_dump(mode="json"),
         }

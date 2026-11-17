@@ -68,7 +68,7 @@ def _cmd_analyze(args: argparse.Namespace) -> None:
         if top is not None:
             top_text = (
                 f"  top {top['pattern']} x{top['count']}"
-                f"  accuracy {top['accuracy']}  punishment {top['mean_punishment_delta']}"
+                f"  accuracy {top['accuracy']}  damage {top['mean_damage']}"
             )
         print(f"  combos {combos['combo_count']}  mean_length {length_text}{top_text}")
     for rnd in payload["rounds"]:

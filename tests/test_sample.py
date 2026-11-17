@@ -69,42 +69,76 @@ def test_official_scorecard(report):
     assert 30 < rnd.bell_sec < 40
     assert rnd.duration_sec < report.session.duration_sec
     by_round = {item.corner: item for item in rnd.offense}
-    assert by_round[1].thrown == 110
-    assert by_round[1].landed == rnd.red.hits == 33
-    assert by_round[2].thrown == 102
+    assert by_round[1].thrown == 70
+    assert rnd.red.hits == 33
+    # Landed counts the 4 stuns, 3 punishment stuns, and 2 knockdown blows as well as the 33 scored hits.
+    assert by_round[1].landed == rnd.red.hits + rnd.red.stuns + rnd.red.punishment_stuns + rnd.red.all_knockdowns == 42
+    assert by_round[2].thrown == 24
     assert by_round[2].landed == rnd.blue.hits == 17
     times = [punch.t_sec for item in rnd.offense for punch in item.punches]
     assert min(times) >= -7
-    assert max(times) <= rnd.duration_sec + 3
+    assert max(times) <= rnd.end_sec - rnd.bell_sec + 3
+    # The round was stopped 84.8 s after the bell, and 30.2 s of that was two knockdown counts.
+    assert rnd.end_sec - rnd.bell_sec == pytest.approx(84.8, abs=0.1)
+    assert rnd.duration_sec == pytest.approx(54.57, abs=0.05)
     assert all(not later.offense for later in report.rounds if not later.completed)
     assert any(moment.type == "knockout" for moment in rnd.key_moments)
 
 
 def test_cross_stream_metrics(report):
     by_corner = {item.corner: item for item in report.offense}
-    assert by_corner[1].thrown == 110
-    assert by_corner[1].landed == 33
+    assert by_corner[1].thrown == 70
+    assert by_corner[1].landed == 42
     assert by_corner[1].official_hits == 33
-    assert by_corner[2].thrown == 102
+    assert by_corner[2].thrown == 24
     assert by_corner[2].landed == 17
     assert by_corner[2].official_hits == 17
-    assert by_corner[1].accuracy == pytest.approx(33 / 110)
-    assert by_corner[2].accuracy == pytest.approx(17 / 102)
+    assert by_corner[1].accuracy == pytest.approx(42 / 70)
+    assert by_corner[2].accuracy == pytest.approx(17 / 24)
     red_hands = {row.hand: row for row in by_corner[1].hands}
-    assert sum(row.landed for row in by_corner[1].hands) == 33
-    assert sum(row.thrown for row in by_corner[1].hands) == 110
+    assert sum(row.landed for row in by_corner[1].hands) == 42
+    assert sum(row.thrown for row in by_corner[1].hands) == 70
     assert {"left", "right"} <= set(red_hands)
     assert "hand_0" not in red_hands and "hand_1" not in red_hands
     assert by_corner[1].kinematic_thrown == 61
-    assert by_corner[1].velocity.samples == 61
+    assert by_corner[1].velocity.samples == 70
+    assert 9.0 < by_corner[1].velocity.mean_thrown < 10.5
+    assert by_corner[1].velocity.max_speed > 15.0
+    assert by_corner[1].velocity.speed_damage_correlation > 0.2
     assert by_corner[1].velocity.mean_thrown is not None
-    assert by_corner[2].velocity.samples == 0
+    assert by_corner[2].velocity.samples == 24
     trajectories = {row.trajectory: row for row in by_corner[1].trajectories}
     assert {"jab", "cross", "left_hook", "right_hook"} <= set(trajectories)
     assert trajectories["left_hook"].thrown >= 9
     assert trajectories["right_hook"].thrown >= 22
     assert trajectories["jab"].thrown >= 16
     assert trajectories["cross"].thrown >= 9
+
+
+def test_contact_records_are_not_all_punches(report):
+    session = load_session(SAMPLE)
+    for offense in report.offense:
+        recorded = len(session.tracks[offense.corner].punches)
+        assert offense.thrown == offense.kinematic_thrown + offense.contact_thrown
+        assert offense.thrown + offense.discarded_records == recorded
+        assert offense.combinations.max_combo_length <= 6
+    by_corner = {item.corner: item for item in report.offense}
+    # The local player: every game-detected swing is kept, and 9 of 49 contact stamps are strikes.
+    assert by_corner[1].kinematic_thrown == 61
+    assert by_corner[1].contact_thrown == 9
+    assert by_corner[1].discarded_records == 40
+    assert 72 < by_corner[1].punches_per_minute < 82
+    # The AI track only has contact stamps. Blocks and glove clashes are left out.
+    assert by_corner[2].kinematic_thrown == 0
+    assert by_corner[2].contact_thrown == 24
+    assert by_corner[2].discarded_records == 78
+    assert sum(1 for punch in by_corner[2].punches if punch.landed) == 16
+    thrown = next(note for note in report.decode_status if note.field == "offense.thrown")
+    assert thrown.confidence == "inferred"
+    assert "4.0 m/s" in thrown.note and "contact point" in thrown.note and "discarded_records" in thrown.note
+    assert sum(1 for punch in by_corner[1].punches if punch.landed) == 41
+    landed_damage = sum(punch.damage for punch in by_corner[1].punches if punch.landed)
+    assert landed_damage == pytest.approx(1020, abs=1)
 
     defense = {item.corner: item for item in report.defense}
     for corner in (1, 2):
@@ -118,7 +152,17 @@ def test_cross_stream_metrics(report):
     assert defense[2].received_damage_official == 1032
 
     types = {moment.type for moment in report.key_moments}
-    assert {"stun", "knockdown", "knockout", "exchange", "punishment_spike", "high_velocity_landed"} <= types
+    assert {"stun", "punishment_stun", "knockdown", "knockout", "exchange", "punishment_spike", "high_velocity_landed"} <= types
+    assert "hurt_event" not in types
+    timed = {name: [round(m.t_sec, 2) for m in report.key_moments if m.type == name] for name in types}
+    assert timed["stun"] == [59.88, 64.76, 76.63, 99.17]
+    assert timed["punishment_stun"] == [36.83, 41.4, 103.24]
+    assert timed["knockdown"] == [78.63, 105.52]
+    assert timed["knockout"] == [119.58]
+    assert all(m.corners == [2] for m in report.key_moments if m.type in {"stun", "punishment_stun", "knockdown", "knockout"})
+    for name in ("stun", "punishment_stun", "knockdown"):
+        assert next(note for note in report.decode_status if note.field == f"timeline.{name}").confidence == "confirmed"
+    assert next(note for note in report.decode_status if note.field == "series.guard_brace").confidence == "unavailable"
     assert sum(1 for moment in report.key_moments if moment.type == "stun") == 4
     names = {series.name for series in report.series}
     assert {"punishment_0", "guard_up", "head_speed", "punch_density", "guard_brace"} <= names
@@ -136,11 +180,12 @@ def test_mcp_tools():
     listing = server.list_recordings()
     assert any(row["name"] == SAMPLE.name for row in listing)
     stats = server.get_fighter_stats(SAMPLE.name, 1)
-    assert stats["offense"]["landed"] == 33
+    assert stats["offense"]["landed"] == 42
     assert stats["defense"]["received_damage_official"] == 134
     knockouts = server.get_key_moments(str(SAMPLE), "knockout")
     assert len(knockouts) == 1
     assert knockouts[0]["corners"] == [2]
+    assert len(server.get_key_moments(str(SAMPLE), "stun")) == 4
     series = server.get_series(SAMPLE.name, "head_speed", 1)
     assert len(series) == 1
     assert series[0]["t"]
@@ -166,7 +211,7 @@ def test_api_lists_and_analyzes_sample():
     assert body["session"]["method"] == "knockout"
     finished = [rnd for rnd in body["rounds"] if rnd["completed"]]
     assert len(finished) == 1
-    assert finished[0]["offense"][0]["landed"] in (17, 33)
+    assert finished[0]["offense"][0]["landed"] in (17, 42)
 
 
 GAME_DECISION = _recording(
@@ -194,5 +239,5 @@ def test_decision_splits_into_three_rounds():
         for series in rnd.series:
             if series.t:
                 assert min(series.t) >= -8
-                assert max(series.t) <= (rnd.duration_sec or 0) + 3
+                assert max(series.t) <= (rnd.end_sec - rnd.bell_sec) + 3
     assert summed == fight_thrown

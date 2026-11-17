@@ -165,7 +165,8 @@ def test_new_series_channels_and_http_report_stays_complete():
     paths = [SAMPLE] + ([THREE_ROUNDS] if THREE_ROUNDS.is_file() else [])
     for path in paths:
         stats = server.get_fighter_stats(path.name, 1)
-        round_duration = stats["rounds"][0]["duration_sec"]
+        # Clock length of the round. duration_sec is fighting time and leaves out knockdown counts.
+        round_duration = stats["rounds"][0]["end_sec"] - stats["rounds"][0]["bell_sec"]
         for name in NEW_SERIES:
             both = server.get_series(path.name, name)
             assert len(both) == 2

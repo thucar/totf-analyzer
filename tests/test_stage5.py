@@ -30,7 +30,15 @@ def _report(path: Path):
 
 def _hits(report, corner: int) -> int:
     color = "red" if corner == COLOR_CORNER["red"] else "blue"
-    return sum(getattr(rnd, color).hits for rnd in report.rounds if rnd.completed)
+    # Hits taken include stuns and knockdown blows, which m_hits leaves out.
+    return sum(
+        getattr(rnd, color).hits
+        + getattr(rnd, color).stuns
+        + getattr(rnd, color).punishment_stuns
+        + getattr(rnd, color).all_knockdowns
+        for rnd in report.rounds
+        if rnd.completed
+    )
 
 
 def test_depth_and_patterns_partition_thrown_punches():
@@ -57,11 +65,11 @@ def test_depth_and_patterns_partition_thrown_punches():
             assert pattern.count >= 1
             assert pattern.thrown == pattern.count * pattern.length
             assert pattern.accuracy == pytest.approx(pattern.landed / pattern.thrown)
-            assert pattern.mean_punishment_delta is not None
-            assert pattern.mean_punishment_delta >= 0.0
+            assert pattern.mean_damage is not None
+            assert pattern.mean_damage >= 0.0
             if pattern.landed == 0:
-                assert pattern.mean_punishment_delta_landed is None
-                assert pattern.mean_punishment_delta == 0.0
+                assert pattern.mean_damage_landed is None
+                assert pattern.mean_damage == 0.0
 
 
 def test_round_combo_counts_sum_to_the_fight():
@@ -102,29 +110,41 @@ def test_vulnerability_hits_match_the_scorecard_and_risk_ratio():
                 continue
             block = next(row.vulnerability for row in rnd.defense if row.corner == defense.corner)
             color = "red" if defense.corner == COLOR_CORNER["red"] else "blue"
-            taken = getattr(rnd, color).hits
+            card = getattr(rnd, color)
+            taken = card.hits + card.stuns + card.punishment_stuns + card.all_knockdowns
             assert sum(getattr(block, name).hits for name in WINDOWS) == taken
 
 
 def test_local_player_depth_and_hit_shares_on_061911():
-    """Local fighter on this zip, grouping every punch on launch ticks.
+    """Local fighter on this zip, grouping every counted punch on launch ticks.
 
     Issue #1 sketched 51.7%, 53.1%, and 16.7% depth accuracy and 84.8/6.3/8.9 hit
     shares from an earlier pass. Those figures are not what this launch-gap
     definition produces, so the test locks the measured values instead.
+    Contact records that are not strikes are left out of thrown, which is why
+    these are 141 openers and not the 150 the raw records gave.
     """
     report = _report(THREE_ROUNDS)
     local = next(fighter for fighter in report.fighters if fighter.is_local_player)
     offense = next(item for item in report.offense if item.corner == local.corner)
     depth = {row.depth: row for row in offense.combinations.by_depth}
-    assert depth["1"].accuracy == pytest.approx(66 / 150)
-    assert depth["2"].accuracy == pytest.approx(53 / 130)
-    assert depth["3"].accuracy == pytest.approx(34 / 102)
+    assert depth["1"].accuracy == pytest.approx(89 / 141)
+    assert depth["2"].accuracy == pytest.approx(81 / 119)
+    assert depth["3"].accuracy == pytest.approx(29 / 66)
     vulnerability = next(item.vulnerability for item in report.defense if item.corner == local.corner)
-    assert vulnerability.while_throwing.hit_share == pytest.approx(81.25)
-    assert vulnerability.post_punch_recovery.hit_share == pytest.approx(15.0)
-    assert vulnerability.neutral_guard.hit_share == pytest.approx(3.75)
-    assert any(pattern.count >= 2 and pattern.mean_punishment_delta > 0 for pattern in offense.combinations.patterns)
+    assert vulnerability.while_throwing.hit_share == pytest.approx(100 * 44 / 85)
+    assert vulnerability.post_punch_recovery.hit_share == pytest.approx(100 * 21 / 85)
+    assert vulnerability.neutral_guard.hit_share == pytest.approx(100 * 20 / 85)
+    assert any(pattern.count >= 2 and pattern.mean_damage > 0 for pattern in offense.combinations.patterns)
+    assert offense.thrown == 374 and offense.kinematic_thrown == 308 and offense.discarded_records == 253
+    assert offense.combinations.max_combo_length == 7
+    opponent = next(item for item in report.offense if item.corner != local.corner)
+    assert opponent.thrown == 131 and opponent.kinematic_thrown == 0 and opponent.discarded_records == 485
+    # The opponent's 80 scored hits plus the 5 blows that stunned the local fighter.
+    assert opponent.landed == 85 and opponent.official_hits == 80
+    stuns = [moment for moment in report.key_moments if moment.type == "stun"]
+    assert len(stuns) == 5 and all(moment.corners == [local.corner] for moment in stuns)
+    assert opponent.combinations.max_combo_length == 3
 
 
 def test_combination_decode_notes():
@@ -133,7 +153,7 @@ def test_combination_decode_notes():
     vulnerability = next(item for item in report.decode_status if item.field == "defense.vulnerability")
     assert combos.confidence == "inferred"
     assert vulnerability.confidence == "inferred"
-    assert "0.65" in combos.note and "received damage" in combos.note
+    assert "0.65" in combos.note and "m_receivedDamage" in combos.note
     assert "0.15" in vulnerability.note and "0.60" in vulnerability.note and "risk_ratio" in vulnerability.note
 
 

@@ -108,8 +108,8 @@ class VelocityStats(BaseModel):
     mean_thrown: float | None = None
     mean_landed: float | None = None
     max_speed: float | None = None
-    mean_punishment_delta_landed: float | None = None
-    speed_punishment_correlation: float | None = None
+    mean_damage_landed: float | None = None
+    speed_damage_correlation: float | None = None
     histogram: list[HistogramBin] = Field(default_factory=list)
 
 
@@ -123,7 +123,7 @@ class PunchRow(BaseModel):
     trajectory: str
     speed: float | None = None
     landed: bool
-    punishment_delta: float | None = None
+    damage: float | None = None
     combo_id: int | None = None
     combo_depth: str | None = None
     countered: bool = False
@@ -225,8 +225,8 @@ class ComboPatternStats(BaseModel):
     landed: int
     accuracy: float | None = None
     mean_speed: float | None = None
-    mean_punishment_delta: float | None = None
-    mean_punishment_delta_landed: float | None = None
+    mean_damage: float | None = None
+    mean_damage_landed: float | None = None
 
 
 class CombinationStats(BaseModel):
@@ -281,6 +281,8 @@ class OffenseStats(BaseModel):
     corner: int
     thrown: int
     kinematic_thrown: int
+    contact_thrown: int = 0
+    discarded_records: int = 0
     landed: int
     official_hits: int
     accuracy: float | None = None
