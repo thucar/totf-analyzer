@@ -117,7 +117,7 @@ export function FightSummaryView({
     .filter((p) => p.length >= 2)
     .sort(
       (a, b) =>
-        (b.mean_punishment_delta ?? 0) * b.count - (a.mean_punishment_delta ?? 0) * a.count ||
+        (b.mean_damage ?? 0) * b.count - (a.mean_damage ?? 0) * a.count ||
         b.landed - a.landed ||
         b.count - a.count,
     )
@@ -738,7 +738,7 @@ export function FightSummaryView({
             <div className="flex items-center justify-between mb-space-md gap-2">
               <div className="flex items-center gap-space-sm">
                 <span className="material-symbols-outlined text-tertiary">bolt</span>
-                <h2 className="font-headline-sm text-headline-sm text-on-surface m-0">Punishment Combinations</h2>
+                <h2 className="font-headline-sm text-headline-sm text-on-surface m-0">Damage Combinations</h2>
               </div>
               <div className="flex items-center bg-surface-container-lowest p-0.5 rounded gap-1">
                 <button
@@ -770,7 +770,7 @@ export function FightSummaryView({
               )}
               {topCombos.map((combo, idx) => {
                 const tokens = combo.pattern.split("-");
-                const totalDelta = (combo.mean_punishment_delta ?? 0) * combo.count;
+                const totalDelta = (combo.mean_damage ?? 0) * combo.count;
                 return (
                   <div
                     key={combo.pattern}
@@ -781,7 +781,7 @@ export function FightSummaryView({
                         RANK #{idx + 1} · {combo.count}× THROWN
                       </span>
                       <span className="font-label-data text-body-sm text-on-surface font-semibold">
-                        {num(combo.mean_punishment_delta, 2)} mean Δ ({num(totalDelta, 1)} sum)
+                        {num(combo.mean_damage, 2)} mean dmg ({num(totalDelta, 1)} sum)
                       </span>
                     </div>
                     <div className="flex flex-wrap items-center gap-1 text-on-surface font-label-data text-label-data">

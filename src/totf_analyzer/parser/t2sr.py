@@ -21,10 +21,43 @@ PUNCH_RECORD = 140
 EVENT_HEADER = 40
 EVENT_RECORD = 69
 
-# Type-1 events with this flag match official scored hits received by that track.
+# A type-1 event is a hit taken by that track. Byte 8 is the kind of hit. Kind 1 is an
+# ordinary scored hit and its count matches m_hits. Kind 6 matches m_stuns and kind 7
+# m_punishmentStuns. Kinds 2 and 5 are the blows that start a knockdown count.
 SCORED_HIT_TYPE = 1
 SCORED_HIT_FLAG = 1
 SCORED_HIT_FLAG_OFFSET = 8
+HIT_KIND_SCORED = 1
+HIT_KIND_PUNISHMENT_KNOCKDOWN = 2
+HIT_KIND_KNOCKDOWN = 5
+HIT_KIND_STUN = 6
+HIT_KIND_PUNISHMENT_STUN = 7
+HIT_KIND_LABEL = {
+    HIT_KIND_SCORED: "hit",
+    HIT_KIND_PUNISHMENT_KNOCKDOWN: "punishment_knockdown",
+    HIT_KIND_KNOCKDOWN: "knockdown",
+    HIT_KIND_STUN: "stun",
+    HIT_KIND_PUNISHMENT_STUN: "punishment_stun",
+}
+# Float at byte 13 of a type-1 event: damage of that hit. Per round it sums to m_receivedDamage.
+EVENT_DAMAGE_OFFSET = 13
+# Three floats at byte 37 of a type-1 event: the contact point. The punch record that made the
+# hit stores the same twelve bytes at offset 91.
+EVENT_CONTACT_OFFSET = 37
+PUNCH_CONTACT_OFFSET = 91
+CONTACT_POINT_BYTES = 12
+# Float at byte 111 of a punch record: damage that punch dealt.
+PUNCH_DAMAGE_OFFSET = 111
+# A type-5 event marks a change of match phase. Byte 9 is the phase.
+PHASE_EVENT_TYPE = 5
+PHASE_OFFSET = 9
+PHASE_WARNING = 2
+PHASE_ROUND_END = 3
+PHASE_FIGHT = 4
+PHASE_KNOCKDOWN = 5
+PHASE_KNOCKDOWN_FINAL = 6
+PHASE_FIGHT_OVER = 9
+PHASE_RECORDING_END = 10
 
 # skeleton.bin stores this fixed 21-joint hierarchy. Positions 0..2 of each
 # joint are xyz; 3..5 are compressed rotations and are not read here.
@@ -78,7 +111,10 @@ class PunchRecord:
     bone_index: int
     kinematics: bool
     punch_class: int
-    speed: float | None
+    # Peak glove speed in m/s. Analytics measures it from the skeleton. The record has no speed field.
+    speed: float | None = None
+    damage: float | None = None
+    contact_key: bytes = b""
 
 
 @dataclass(frozen=True)
@@ -87,6 +123,15 @@ class EventRecord:
     type_code: int
     subtype: int
     scored_hit: bool
+    hit_kind: int = 0
+    damage: float | None = None
+    contact_key: bytes = b""
+    phase: int | None = None
+
+    @property
+    def landed_hit(self) -> bool:
+        """Any hit taken: scored hits, stuns, and the blows that start a knockdown."""
+        return self.type_code == SCORED_HIT_TYPE and self.hit_kind != 0
 
 
 def _u32(data: bytes, offset: int) -> int:
@@ -155,11 +200,7 @@ def read_punches(data: bytes) -> list[PunchRecord]:
         tick = _u32(rec, 0)
         launch_tick = _u32(rec, 12)
         kinematics = rec[9] == 0
-        speed: float | None = None
-        if kinematics:
-            raw_speed = struct.unpack_from("<f", rec, 80)[0]
-            if raw_speed == raw_speed and 0.5 < raw_speed < 30.0:
-                speed = float(raw_speed)
+        damage = struct.unpack_from("<f", rec, PUNCH_DAMAGE_OFFSET)[0]
         punches.append(
             PunchRecord(
                 tick=tick,
@@ -168,7 +209,8 @@ def read_punches(data: bytes) -> list[PunchRecord]:
                 bone_index=int(rec[11]),
                 kinematics=kinematics,
                 punch_class=int(rec[32]),
-                speed=speed,
+                damage=float(damage) if math.isfinite(damage) and damage >= 0 else None,
+                contact_key=bytes(rec[PUNCH_CONTACT_OFFSET : PUNCH_CONTACT_OFFSET + CONTACT_POINT_BYTES]),
             )
         )
     return punches
@@ -183,12 +225,18 @@ def read_events(data: bytes) -> list[EventRecord]:
     for index in range(count):
         rec = data[EVENT_HEADER + index * EVENT_RECORD : EVENT_HEADER + (index + 1) * EVENT_RECORD]
         type_code = int(rec[4])
+        is_hit = type_code == SCORED_HIT_TYPE
+        damage = struct.unpack_from("<f", rec, EVENT_DAMAGE_OFFSET)[0] if is_hit else None
         events.append(
             EventRecord(
                 tick=_u32(rec, 0),
                 type_code=type_code,
                 subtype=int(rec[5]),
-                scored_hit=type_code == SCORED_HIT_TYPE and rec[SCORED_HIT_FLAG_OFFSET] == SCORED_HIT_FLAG,
+                scored_hit=is_hit and rec[SCORED_HIT_FLAG_OFFSET] == SCORED_HIT_FLAG,
+                hit_kind=int(rec[SCORED_HIT_FLAG_OFFSET]) if is_hit else 0,
+                damage=float(damage) if damage is not None and math.isfinite(damage) else None,
+                contact_key=bytes(rec[EVENT_CONTACT_OFFSET : EVENT_CONTACT_OFFSET + CONTACT_POINT_BYTES]) if is_hit else b"",
+                phase=int(rec[PHASE_OFFSET]) if type_code == PHASE_EVENT_TYPE else None,
             )
         )
     return events

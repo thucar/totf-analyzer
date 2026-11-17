@@ -137,7 +137,7 @@ export function KineticsForceView({
   const redStiffness = seriesMean(series, "stiffness_max", redCornerId);
   const blueStiffness = seriesMean(series, "stiffness_max", blueCornerId);
 
-  // High-velocity impact ledger: top landed punches sorted by speed then punishment_delta
+  // High-velocity impact ledger: top landed punches sorted by glove speed then damage
   const topImpacts = useMemo(() => {
     const merged = [
       ...(redOff?.punches ?? [])
@@ -151,7 +151,7 @@ export function KineticsForceView({
       .sort(
         (a, b) =>
           (b.speed ?? -1) - (a.speed ?? -1) ||
-          (b.punishment_delta ?? 0) - (a.punishment_delta ?? 0),
+          (b.damage ?? 0) - (a.damage ?? 0),
       )
       .slice(0, 10);
   }, [redOff, blueOff, redCornerId, blueCornerId, redName, blueName]);
@@ -179,7 +179,7 @@ export function KineticsForceView({
             </span>
             <span className="text-surface-variant">•</span>
             <span className="text-tertiary">
-              Speed↔Punishment r = {num(redOff?.velocity.speed_punishment_correlation, 2)} (R)
+              Speed↔Damage r = {num(redOff?.velocity.speed_damage_correlation, 2)} (R)
             </span>
           </div>
         </div>
@@ -321,19 +321,19 @@ export function KineticsForceView({
         <div className="flex flex-col justify-between p-space-md bg-surface-container rounded shadow-sm">
           <div className="flex items-center justify-between mb-space-xs">
             <span className="font-label-caps text-label-caps text-outline uppercase tracking-wider">
-              PUNISHMENT STEP / LANDED
+              DAMAGE / LANDED
             </span>
             <span className="font-label-caps text-label-caps px-space-xs py-0.5 rounded bg-tertiary-container text-on-tertiary font-bold">
-              CH 0+1
+              HIT EVENT
             </span>
           </div>
           <div className="flex items-baseline gap-space-xs mb-space-sm">
             <span className="font-telemetry-metric-lg text-tertiary font-bold tracking-tight">
-              {num(redOff?.velocity.mean_punishment_delta_landed, 2)}
+              {num(redOff?.velocity.mean_damage_landed, 2)}
             </span>
             <span className="font-label-data text-outline">pts/hit</span>
             <span className="ml-auto font-label-caps text-secondary font-bold">
-              vs {num(blueOff?.velocity.mean_punishment_delta_landed, 2)}
+              vs {num(blueOff?.velocity.mean_damage_landed, 2)}
             </span>
           </div>
           <div className="flex justify-between text-[11px] font-label-data text-outline">
@@ -355,7 +355,7 @@ export function KineticsForceView({
                 </span>
               </div>
               <span className="font-label-data text-label-data text-outline">
-                Bins across [0, 6, 7.5, 8.5, 9.5, 12, 30] m/s from kinematic punch records
+                Bins across [0, 4, 6, 8, 10, 12, 15, 30] m/s of peak glove speed from the skeleton
               </span>
             </div>
           </div>
@@ -414,16 +414,16 @@ export function KineticsForceView({
               <span className="material-symbols-outlined text-outline text-[18px]">biotech</span>
             </div>
             <span className="font-headline-sm text-headline-sm text-on-surface leading-tight">
-              Speed-to-Punishment &amp; Retraction Rigor
+              Speed-to-Damage &amp; Retraction Rigor
             </span>
             <p className="font-body-sm text-body-sm text-on-surface-variant leading-relaxed m-0">
-              Pearson correlation between landed punch speed and punishment step:{" "}
+              Pearson correlation between landed punch glove speed and hit damage:{" "}
               <strong className="text-primary">
-                {num(redOff?.velocity.speed_punishment_correlation, 3)}
+                {num(redOff?.velocity.speed_damage_correlation, 3)}
               </strong>{" "}
               ({redName}) vs{" "}
               <strong className="text-secondary">
-                {num(blueOff?.velocity.speed_punishment_correlation, 3)}
+                {num(blueOff?.velocity.speed_damage_correlation, 3)}
               </strong>{" "}
               ({blueName}).
             </p>
@@ -625,7 +625,7 @@ export function KineticsForceView({
                   <th className="py-space-xs px-space-sm">Time</th>
                   <th className="py-space-xs px-space-sm">Corner / Vector</th>
                   <th className="py-space-xs px-space-sm text-right">Speed</th>
-                  <th className="py-space-xs px-space-sm text-right">Punishment Δ</th>
+                  <th className="py-space-xs px-space-sm text-right">Damage</th>
                   <th className="py-space-xs px-space-sm text-right">Depth</th>
                 </tr>
               </thead>
@@ -645,7 +645,7 @@ export function KineticsForceView({
                       {p.speed != null ? `${p.speed.toFixed(2)} m/s` : "—"}
                     </td>
                     <td className="py-space-xs px-space-sm text-right text-tertiary font-bold">
-                      {p.punishment_delta != null ? `+${p.punishment_delta.toFixed(2)}` : "—"}
+                      {p.damage != null ? `+${p.damage.toFixed(2)}` : "—"}
                     </td>
                     <td className="py-space-xs px-space-sm text-right text-outline">
                       D{p.combo_depth ?? "1"}

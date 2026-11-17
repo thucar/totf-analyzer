@@ -183,7 +183,7 @@ export function PunchLogView({
               <th className="p-space-sm">Trajectory</th>
               <th className="p-space-sm text-right">Speed</th>
               <th className="p-space-sm">Outcome</th>
-              <th className="p-space-sm text-right">Punish Δ</th>
+              <th className="p-space-sm text-right">Damage</th>
               <th className="p-space-sm text-right">Combo</th>
               <th className="p-space-sm text-right">Head Slip</th>
               <th className="p-space-sm text-right">Return</th>
@@ -226,7 +226,7 @@ export function PunchLogView({
                   )}
                 </td>
                 <td className="p-space-sm text-right text-tertiary">
-                  {p.punishment_delta != null ? `+${num(p.punishment_delta, 2)}` : "—"}
+                  {p.damage != null ? `+${num(p.damage, 2)}` : "—"}
                 </td>
                 <td className="p-space-sm text-right text-outline">
                   {p.combo_id != null ? `#${p.combo_id} (D${p.combo_depth ?? "1"})` : "—"}

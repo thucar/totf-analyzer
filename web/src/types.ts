@@ -89,8 +89,8 @@ export type FightAnalytics = {
       mean_thrown: number | null;
       mean_landed: number | null;
       max_speed: number | null;
-      mean_punishment_delta_landed: number | null;
-      speed_punishment_correlation: number | null;
+      mean_damage_landed: number | null;
+      speed_damage_correlation: number | null;
       histogram: { lo: number; hi: number; count: number }[];
     };
     combinations: {
@@ -116,8 +116,8 @@ export type FightAnalytics = {
         landed: number;
         accuracy: number | null;
         mean_speed: number | null;
-        mean_punishment_delta: number | null;
-        mean_punishment_delta_landed: number | null;
+        mean_damage: number | null;
+        mean_damage_landed: number | null;
       }[];
     };
     punches: {
@@ -128,7 +128,7 @@ export type FightAnalytics = {
       trajectory: string;
       speed: number | null;
       landed: boolean;
-      punishment_delta: number | null;
+      damage: number | null;
       combo_id?: number | null;
       combo_depth?: string | null;
       countered?: boolean;
