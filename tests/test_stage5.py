@@ -107,24 +107,31 @@ def test_vulnerability_hits_match_the_scorecard_and_risk_ratio():
 
 
 def test_local_player_depth_and_hit_shares_on_061911():
-    """Local fighter on this zip, grouping every punch on launch ticks.
+    """Local fighter on this zip, grouping every counted punch on launch ticks.
 
     Issue #1 sketched 51.7%, 53.1%, and 16.7% depth accuracy and 84.8/6.3/8.9 hit
     shares from an earlier pass. Those figures are not what this launch-gap
     definition produces, so the test locks the measured values instead.
+    Contact records that are not strikes are left out of thrown, which is why
+    these are 141 openers and not the 150 the raw records gave.
     """
     report = _report(THREE_ROUNDS)
     local = next(fighter for fighter in report.fighters if fighter.is_local_player)
     offense = next(item for item in report.offense if item.corner == local.corner)
     depth = {row.depth: row for row in offense.combinations.by_depth}
-    assert depth["1"].accuracy == pytest.approx(66 / 150)
-    assert depth["2"].accuracy == pytest.approx(53 / 130)
-    assert depth["3"].accuracy == pytest.approx(34 / 102)
+    assert depth["1"].accuracy == pytest.approx(89 / 141)
+    assert depth["2"].accuracy == pytest.approx(80 / 119)
+    assert depth["3"].accuracy == pytest.approx(29 / 66)
     vulnerability = next(item.vulnerability for item in report.defense if item.corner == local.corner)
-    assert vulnerability.while_throwing.hit_share == pytest.approx(81.25)
-    assert vulnerability.post_punch_recovery.hit_share == pytest.approx(15.0)
-    assert vulnerability.neutral_guard.hit_share == pytest.approx(3.75)
+    assert vulnerability.while_throwing.hit_share == pytest.approx(51.25)
+    assert vulnerability.post_punch_recovery.hit_share == pytest.approx(26.25)
+    assert vulnerability.neutral_guard.hit_share == pytest.approx(22.5)
     assert any(pattern.count >= 2 and pattern.mean_punishment_delta > 0 for pattern in offense.combinations.patterns)
+    assert offense.thrown == 374 and offense.kinematic_thrown == 308 and offense.discarded_records == 253
+    assert offense.combinations.max_combo_length == 7
+    opponent = next(item for item in report.offense if item.corner != local.corner)
+    assert opponent.thrown == 130 and opponent.kinematic_thrown == 0 and opponent.discarded_records == 486
+    assert opponent.combinations.max_combo_length == 3
 
 
 def test_combination_decode_notes():
