@@ -114,7 +114,7 @@ def test_local_player_matches_061911_prototype():
     assert discipline.retraction_time_ms.median == pytest.approx(158.3, abs=1.0)
     assert discipline.retraction_droop_m.sag_over_10cm_percent == pytest.approx(36.7, abs=2.0)
     assert discipline.retraction_droop_m.p90 == pytest.approx(0.495, abs=0.01)
-    assert discipline.retraction_returned_percent == pytest.approx(80.8, abs=1.0)
+    assert discipline.retraction_returned_percent == pytest.approx(80.3, abs=1.0)
     assert discipline.retraction_directness_ratio.median is not None
     assert 0.0 <= discipline.retraction_directness_ratio.median <= 1.0
     note = next(item for item in report.decode_status if item.field == "defense.guard_discipline")

@@ -917,7 +917,8 @@ def _validated_punches(session: ParsedSession) -> ParsedSession:
     """Keep the punch records that are punches. The rest move to ``rejected_punches``.
 
     Kinematic records (byte 9 is 0) are the game's own detected swings and are kept.
-    A contact record is dropped when it is a second contact of a swing already kept on that hand,
+    A contact record is dropped when it is another contact of a swing already kept on that hand
+    (inside it, just after it, or just before a kinematic launch),
     or when its glove was not closing on the opponent fast enough to be a strike
     (a block, a glove clash, a push, or a parry). Without skeleton frames it is kept.
     A slow contact record is kept after all when a hit event stores its contact point, or when a hit
@@ -937,7 +938,8 @@ def _validated_punches(session: ParsedSession) -> ParsedSession:
         swings: dict[int, list[tuple[int, int]]] = defaultdict(list)
         for punch in track.punches:
             if punch.kinematics:
-                swings[punch.hand_index].append((punch.launch_tick, punch.tick + grace))
+                # A stamp just before the launch tick is the same swing: the game can set launch after first contact.
+                swings[punch.hand_index].append((punch.launch_tick - grace, punch.tick + grace))
         keep = [punch.kinematics for punch in track.punches]
         slow: list[int] = []
         order = sorted(range(len(track.punches)), key=lambda index: (track.punches[index].launch_tick, index))
@@ -2871,7 +2873,8 @@ def _static_notes() -> list[DecodeNote]:
                 "and the game writes one for blocks, glove clashes, and pushes as well as for strikes. "
                 f"contact_thrown counts the contact records whose glove closed on the opponent's head or trunk at "
                 f"{CONTACT_CLOSING_MIN:.1f} m/s or more (3-tick mean) in the {CONTACT_LOOKBACK_SEC:.2f} s before the contact, "
-                f"and that do not fall inside a swing already counted on that hand or within {SAME_SWING_GRACE_SEC:.2f} s of its end. "
+                f"and that do not fall inside a swing already counted on that hand, within {SAME_SWING_GRACE_SEC:.2f} s of its end, "
+                f"or within {SAME_SWING_GRACE_SEC:.2f} s before a kinematic launch on that hand. "
                 "A slower contact record also counts when a hit event stores its contact point, "
                 "or when a hit that no counted punch explains falls "
                 f"from {SCORED_CONTACT_BEFORE_SEC:.3f} s before to {SCORED_CONTACT_AFTER_SEC:.2f} s after its contact tick. "
