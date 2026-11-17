@@ -67,11 +67,11 @@ Tools:
 
 | Measure | Definition |
 | --- | --- |
-| Thrown | Punch records in `punches.bin` |
+| Thrown | `kinematic_thrown` plus `contact_thrown`. A record in `punches.bin` whose byte 9 is `0` is a swing the game detected, with a class and a speed, and always counts. Every other record is a fixed 12-tick glove-contact stamp, which the game also writes for blocks, glove clashes, and pushes. A contact record counts when its glove closed on the opponent's head, chest, spine, or hips at 4.0 m/s or more (3-tick mean) in the 0.15 s before the contact, and it does not fall inside a swing already counted on that hand or within 0.10 s of its end. `discarded_records` is the number left out. An AI opponent's track has contact records only, so its punches that touched nothing are not recorded and its thrown count is a lower bound. |
 | Landed | Type-1 events on the defender's track with flag byte 8 set. That count is the defender's official hits taken, and the attacker's landed punches. |
 | Accuracy | Landed / thrown |
 | Hand | Record byte 10: `0` right, `1` left. Confirmed when that wrist moves more than the other from launch to end. |
-| Trajectory | Byte 32: `1` jab, `2` cross, `3` left_hook, `4` right_hook, `6` uppercut. Class `0` is the wrist's launch-to-peak displacement in the opponent frame (forward, up, right). |
+| Trajectory | Byte 32: `1` jab, `2` cross, `3` left_hook, `4` right_hook, `6` uppercut. Class `0` is the wrist's launch-to-peak displacement in the opponent frame (forward, up, right). For a contact record that displacement is taken over the 0.15 s before the contact. |
 | Speed | Float at punch-record offset 80, treated as m/s |
 | Punch row | `launch_sec` is `launch_tick` (offset 12) and `t_sec` is the end tick (offset 0). `impact_sec` is the matched defender scored-hit tick when `landed` is true. `combo_id` (1-based within the offense block), `combo_depth` (`1`..`4`, `5+`), and `countered` use the same launch-gap groups and counter windows as `combinations`. `head_slip_m` is signed `(head - hips)` on the fighter's right at `launch_tick`. `get_punches` also includes `punch_type` as an alias of `trajectory`. |
 | Guard up | Both glove centers within 0.38 m below head joint 4 and 0.40 m horizontally. A glove center is the wrist extended along the forearm by half of `m_scaledHandLength` (0.095 m if the snapshot omits it). Fight-level percent uses bell-to-bell ticks only. `left_guard_up_percent`, `right_guard_up_percent`, `both_guard_up_percent`, and `either_guard_up_percent` use that same box per hand. `both_guard_up_percent` is `guard_up_percent`. Each is also reported under fire. |

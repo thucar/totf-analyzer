@@ -281,6 +281,8 @@ class OffenseStats(BaseModel):
     corner: int
     thrown: int
     kinematic_thrown: int
+    contact_thrown: int = 0
+    discarded_records: int = 0
     landed: int
     official_hits: int
     accuracy: float | None = None

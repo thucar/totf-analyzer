@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 from collections import defaultdict
 from dataclasses import dataclass
+from dataclasses import replace as dataclass_replace
 
 import numpy as np
 
@@ -41,6 +42,7 @@ from totf_analyzer.models.analytics import (
 )
 from totf_analyzer.parser.session import COLOR_CORNER, CORNER_COLOR, ParsedSession, TrackData
 from totf_analyzer.parser.t2sr import (
+    CHEST,
     HAND_LABEL,
     HEAD,
     HIPS,
@@ -53,6 +55,7 @@ from totf_analyzer.parser.t2sr import (
     R_ELBOW,
     R_SHOULDER,
     R_WRIST,
+    SPINE,
     EventRecord,
     PunchRecord,
 )
@@ -79,6 +82,15 @@ HOOK_LATERAL = 0.40
 STRAIGHT_FORWARD = 0.25
 MIN_EXTENSION_M = 0.02
 MIN_SKELETON_FRAMES = 3
+# A contact record (byte 9 != 0) is a fixed 12-tick glove-contact stamp, not a detected swing.
+# It counts as a punch when the glove was closing on the opponent's head or trunk at least this
+# fast just before the contact, and it is not a second contact of a swing already counted.
+CONTACT_LOOKBACK_SEC = 0.15
+CONTACT_LOOKAHEAD_SEC = 0.033
+CONTACT_SMOOTH_TICKS = 3
+CONTACT_CLOSING_MIN = 4.0
+SAME_SWING_GRACE_SEC = 0.10
+TARGET_JOINTS = (HEAD, CHEST, SPINE, HIPS)
 PUNISHMENT_LINK_TICKS = 48
 SPEED_BINS = (0.0, 6.0, 7.5, 8.5, 9.5, 12.0, 30.0)
 SERIES_STEP_SEC = 0.25
@@ -129,10 +141,11 @@ KNOCKOUT_EVENT_TYPE = 6
 
 def build_analytics(session: ParsedSession) -> FightAnalytics:
     notes: list[DecodeNote] = []
+    session = _validated_punches(session)
     rounds = _rounds(session)
     totals = _score_totals(rounds)
     fighters = [_fighter(track, notes) for track in _ordered(session)]
-    labels = {corner: _hand_labels(track, notes) for corner, track in session.tracks.items()}
+    labels = {corner: _hand_labels(track, notes, session.fixed_timestep) for corner, track in session.tracks.items()}
     windows = _round_windows(session)
     active = _within_windows(session, windows)
     pace = sum(window.duration_sec for window in windows) if windows else None
@@ -471,6 +484,7 @@ def _clip_track(track: TrackData, start: int, end: int) -> TrackData:
         start_tick=start,
         end_tick=end,
         punches=[punch for punch in track.punches if start <= punch.tick <= end],
+        rejected_punches=[punch for punch in track.rejected_punches if start <= punch.tick <= end],
         events=[event for event in track.events if start <= event.tick <= end],
         punishment_ticks=track.punishment_ticks[punishment],
         punishment=track.punishment[punishment],
@@ -517,6 +531,7 @@ def _filter_track(track: TrackData, windows: list[_RoundWindow]) -> TrackData:
         start_tick=track.start_tick,
         end_tick=track.end_tick,
         punches=[punch for punch in track.punches if inside(punch.tick)],
+        rejected_punches=[punch for punch in track.rejected_punches if inside(punch.tick)],
         events=[event for event in track.events if inside(event.tick)],
         punishment_ticks=track.punishment_ticks[punishment],
         punishment=track.punishment[punishment],
@@ -572,6 +587,7 @@ def _drop_clock_events(track: TrackData, clock: set[int]) -> TrackData:
         start_tick=track.start_tick,
         end_tick=track.end_tick,
         punches=track.punches,
+        rejected_punches=track.rejected_punches,
         events=[event for event in track.events if not (event.type_code == 5 and event.tick in clock)],
         punishment_ticks=track.punishment_ticks,
         punishment=track.punishment,
@@ -757,6 +773,92 @@ def _local_axes(track: TrackData, opponent: TrackData) -> tuple[np.ndarray, np.n
     return unit, right
 
 
+def _motion_ticks(punch: PunchRecord, timestep: float) -> tuple[int, int]:
+    """Ticks that hold the swing. A contact record's launch tick is the contact, so its swing is before it."""
+    if punch.kinematics:
+        return punch.launch_tick, punch.tick
+    return (
+        punch.launch_tick - _tick_radius(CONTACT_LOOKBACK_SEC, timestep),
+        punch.launch_tick + _tick_radius(CONTACT_LOOKAHEAD_SEC, timestep),
+    )
+
+
+def _closing_speeds(track: TrackData, opponent: TrackData, timestep: float) -> list[float | None]:
+    """Per punch record: peak speed (m/s) at which that glove closed on the opponent's head or trunk.
+
+    The distance is from the glove center to the nearest of the opponent's head, chest, spine, and hips.
+    The peak is over a 3-tick mean, from 0.15 s before the record's launch tick to 0.033 s after it.
+    """
+    ticks = track.skeleton_ticks.astype(np.int64)
+    other_ticks = opponent.skeleton_ticks.astype(np.int64)
+    if len(ticks) == 0 or len(other_ticks) == 0 or timestep <= 0:
+        return [None for _ in track.punches]
+    left, right = _glove_centers(track)
+    targets = opponent.skeleton_pos[_nearest_index(other_ticks, ticks)][:, list(TARGET_JOINTS)].astype(np.float64)
+    before = _tick_radius(CONTACT_LOOKBACK_SEC, timestep)
+    after = _tick_radius(CONTACT_LOOKAHEAD_SEC, timestep)
+    kernel = np.ones(CONTACT_SMOOTH_TICKS) / CONTACT_SMOOTH_TICKS
+    out: list[float | None] = []
+    for punch in track.punches:
+        if punch.hand_index not in HAND_LABEL:
+            out.append(None)
+            continue
+        glove = left if punch.hand_index == 1 else right
+        lo = int(np.searchsorted(ticks, punch.launch_tick - before, side="left"))
+        hi = int(np.searchsorted(ticks, punch.launch_tick + after, side="right"))
+        if hi - lo < CONTACT_SMOOTH_TICKS + 1:
+            out.append(None)
+            continue
+        distance = np.linalg.norm(glove[lo:hi, None, :] - targets[lo:hi], axis=2).min(axis=1)
+        step_sec = np.diff(ticks[lo:hi]) * timestep
+        closing = -np.diff(distance) / np.where(step_sec > 0, step_sec, timestep)
+        out.append(float(np.convolve(closing, kernel, mode="valid").max()))
+    return out
+
+
+def _validated_punches(session: ParsedSession) -> ParsedSession:
+    """Keep the punch records that are punches. The rest move to ``rejected_punches``.
+
+    Kinematic records (byte 9 is 0) are the game's own detected swings and are kept.
+    A contact record is dropped when it is a second contact of a swing already kept on that hand,
+    or when its glove was not closing on the opponent fast enough to be a strike
+    (a block, a glove clash, a push, or a parry). Without skeleton frames it is kept.
+    """
+    timestep = session.fixed_timestep
+    grace = _tick_radius(SAME_SWING_GRACE_SEC, timestep)
+    tracks: dict[int, TrackData] = {}
+    for corner, track in session.tracks.items():
+        opponent = session.tracks.get(_opponent(session, corner))
+        speeds = (
+            _closing_speeds(track, opponent, timestep)
+            if opponent is not None and opponent is not track
+            else [None for _ in track.punches]
+        )
+        swings: dict[int, list[tuple[int, int]]] = defaultdict(list)
+        for punch in track.punches:
+            if punch.kinematics:
+                swings[punch.hand_index].append((punch.launch_tick, punch.tick + grace))
+        keep = [punch.kinematics for punch in track.punches]
+        order = sorted(range(len(track.punches)), key=lambda index: (track.punches[index].launch_tick, index))
+        for index in order:
+            punch = track.punches[index]
+            if punch.kinematics:
+                continue
+            if any(start <= punch.launch_tick <= end for start, end in swings[punch.hand_index]):
+                continue
+            speed = speeds[index]
+            if speed is not None and speed < CONTACT_CLOSING_MIN:
+                continue
+            keep[index] = True
+            swings[punch.hand_index].append((punch.launch_tick, punch.tick + grace))
+        tracks[corner] = dataclass_replace(
+            track,
+            punches=[punch for punch, kept in zip(track.punches, keep) if kept],
+            rejected_punches=[punch for punch, kept in zip(track.punches, keep) if not kept],
+        )
+    return dataclass_replace(session, tracks=tracks)
+
+
 def _wrist_index(hand_index: int) -> int | None:
     if hand_index == 1:
         return L_WRIST
@@ -796,14 +898,16 @@ def _skeleton_trajectory(
     punch: PunchRecord,
     forward: np.ndarray,
     right: np.ndarray,
+    timestep: float,
 ) -> str:
     wrist = _wrist_index(punch.hand_index)
     hand = HAND_LABEL.get(punch.hand_index)
     ticks = track.skeleton_ticks
     if wrist is None or hand is None or len(ticks) == 0 or punch.launch_tick > punch.tick:
         return "unknown"
-    lo = int(np.searchsorted(ticks, punch.launch_tick, side="left"))
-    hi = int(np.searchsorted(ticks, punch.tick, side="right"))
+    start, end = _motion_ticks(punch, timestep)
+    lo = int(np.searchsorted(ticks, start, side="left"))
+    hi = int(np.searchsorted(ticks, end, side="right"))
     if hi - lo < MIN_SKELETON_FRAMES:
         return "unknown"
     points = track.skeleton_pos[lo:hi, wrist].astype(np.float64)
@@ -816,7 +920,9 @@ def _skeleton_trajectory(
     return _label_displacement(hand, local[peak])
 
 
-def _punch_trajectories(track: TrackData, opponent: TrackData, notes: list[DecodeNote]) -> list[str]:
+def _punch_trajectories(
+    track: TrackData, opponent: TrackData, notes: list[DecodeNote], timestep: float
+) -> list[str]:
     """Game class when byte 32 is set; otherwise the skeleton displacement label."""
     forward, right = _local_axes(track, opponent)
     labels: list[str] = []
@@ -825,7 +931,7 @@ def _punch_trajectories(track: TrackData, opponent: TrackData, notes: list[Decod
     agreed = 0
     for punch in track.punches:
         game = PUNCH_CLASS_LABEL.get(punch.punch_class)
-        skeleton = _skeleton_trajectory(track, punch, forward, right)
+        skeleton = _skeleton_trajectory(track, punch, forward, right, timestep)
         if game:
             game_count += 1
             game_family = _trajectory_family(game)
@@ -859,7 +965,7 @@ def _punch_trajectories(track: TrackData, opponent: TrackData, notes: list[Decod
     return labels
 
 
-def _hand_labels(track: TrackData, notes: list[DecodeNote]) -> dict[int, str]:
+def _hand_labels(track: TrackData, notes: list[DecodeNote], timestep: float) -> dict[int, str]:
     """Byte 10 is authoritative: 0 right, 1 left. Skeleton motion only sets confidence."""
     labels = dict(HAND_LABEL)
     agreed = 0
@@ -870,8 +976,9 @@ def _hand_labels(track: TrackData, notes: list[DecodeNote]) -> dict[int, str]:
         for punch in track.punches:
             if punch.hand_index not in labels or punch.launch_tick > punch.tick:
                 continue
-            lo = int(np.searchsorted(ticks, punch.launch_tick, side="left"))
-            hi = int(np.searchsorted(ticks, punch.tick, side="right"))
+            start, end = _motion_ticks(punch, timestep)
+            lo = int(np.searchsorted(ticks, start, side="left"))
+            hi = int(np.searchsorted(ticks, end, side="right"))
             if hi - lo < 2:
                 continue
             window = pos[lo:hi]
@@ -1101,8 +1208,9 @@ def _punch_guard(track: TrackData, opponent: TrackData, timestep: float) -> list
         if hand is None or punch.launch_tick > punch.tick:
             rows.append(_PunchGuard())
             continue
-        lo = int(np.searchsorted(ticks, punch.launch_tick, side="left"))
-        hi = int(np.searchsorted(ticks, punch.tick, side="right"))
+        start, end = _motion_ticks(punch, timestep)
+        lo = int(np.searchsorted(ticks, start, side="left"))
+        hi = int(np.searchsorted(ticks, end, side="right"))
         punching, offhand = _glove_pair(hand, left_glove, right_glove)
         apex = _extension_peak(punching, forward, right, lo, hi)
         if apex is None:
@@ -1173,7 +1281,7 @@ def _offense(
     pace_sec: float | None = None,
 ) -> OffenseStats:
     defender = session.tracks[_opponent(session, track.corner)]
-    trajectories = _punch_trajectories(track, defender, notes)
+    trajectories = _punch_trajectories(track, defender, notes, session.fixed_timestep)
     launch_slips = _launch_slips(track, defender)
     received = landed_events[defender.corner]
     # m_hits on a corner is hits that fighter took. The punch that landed is on the defender's card.
@@ -1253,6 +1361,8 @@ def _offense(
         corner=track.corner,
         thrown=len(track.punches),
         kinematic_thrown=sum(1 for punch in track.punches if punch.kinematics),
+        contact_thrown=sum(1 for punch in track.punches if not punch.kinematics),
+        discarded_records=len(track.rejected_punches),
         landed=landed_total,
         official_hits=official,
         accuracy=_ratio(landed_total, len(track.punches)),
@@ -2608,8 +2718,19 @@ def _static_notes() -> list[DecodeNote]:
         ),
         DecodeNote(
             field="offense.thrown",
-            confidence="confirmed",
-            note="Thrown is the number of 140-byte punch records. kinematic_thrown counts records whose byte 9 is 0.",
+            confidence="inferred",
+            note=(
+                "Thrown is kinematic_thrown plus contact_thrown. "
+                "kinematic_thrown counts punch records whose byte 9 is 0: swings the game detected, with a class and a speed. "
+                "Every other record is a fixed 12-tick glove-contact stamp with no class or speed, "
+                "and the game writes one for blocks, glove clashes, and pushes as well as for strikes. "
+                f"contact_thrown counts the contact records whose glove closed on the opponent's head or trunk at "
+                f"{CONTACT_CLOSING_MIN:.1f} m/s or more (3-tick mean) in the {CONTACT_LOOKBACK_SEC:.2f} s before the contact, "
+                f"and that do not fall inside a swing already counted on that hand or within {SAME_SWING_GRACE_SEC:.2f} s of its end. "
+                "discarded_records counts the contact records left out. "
+                "A track with no kinematic records (an AI opponent) only has contact records, "
+                "so a punch that touched nothing is not recorded and thrown undercounts its misses."
+            ),
         ),
         DecodeNote(
             field="offense.accuracy",

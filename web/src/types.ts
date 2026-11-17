@@ -70,6 +70,8 @@ export type FightAnalytics = {
     corner: number;
     thrown: number;
     kinematic_thrown: number;
+    contact_thrown: number;
+    discarded_records: number;
     landed: number;
     official_hits: number;
     accuracy: number | null;

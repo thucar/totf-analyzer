@@ -53,6 +53,8 @@ class TrackData:
     guard_primary: np.ndarray
     skeleton_ticks: np.ndarray
     skeleton_pos: np.ndarray
+    # Punch records that analytics judged not to be punches (set by analytics, empty after load).
+    rejected_punches: list[PunchRecord] = field(default_factory=list)
 
 
 @dataclass
