@@ -128,15 +128,15 @@ def test_local_player_depth_and_hit_shares_on_061911():
     local = next(fighter for fighter in report.fighters if fighter.is_local_player)
     offense = next(item for item in report.offense if item.corner == local.corner)
     depth = {row.depth: row for row in offense.combinations.by_depth}
-    assert depth["1"].accuracy == pytest.approx(89 / 141)
-    assert depth["2"].accuracy == pytest.approx(81 / 119)
-    assert depth["3"].accuracy == pytest.approx(29 / 66)
+    assert depth["1"].accuracy == pytest.approx(93 / 141)
+    assert depth["2"].accuracy == pytest.approx(83 / 117)
+    assert depth["3"].accuracy == pytest.approx(28 / 57)
     vulnerability = next(item.vulnerability for item in report.defense if item.corner == local.corner)
-    assert vulnerability.while_throwing.hit_share == pytest.approx(100 * 44 / 85)
-    assert vulnerability.post_punch_recovery.hit_share == pytest.approx(100 * 21 / 85)
+    assert vulnerability.while_throwing.hit_share == pytest.approx(100 * 43 / 85)
+    assert vulnerability.post_punch_recovery.hit_share == pytest.approx(100 * 22 / 85)
     assert vulnerability.neutral_guard.hit_share == pytest.approx(100 * 20 / 85)
     assert any(pattern.count >= 2 and pattern.mean_damage > 0 for pattern in offense.combinations.patterns)
-    assert offense.thrown == 374 and offense.kinematic_thrown == 308 and offense.discarded_records == 253
+    assert offense.thrown == 337 and offense.kinematic_thrown == 308 and offense.discarded_records == 290
     assert offense.combinations.max_combo_length == 7
     opponent = next(item for item in report.offense if item.corner != local.corner)
     assert opponent.thrown == 131 and opponent.kinematic_thrown == 0 and opponent.discarded_records == 485
