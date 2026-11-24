@@ -23,19 +23,32 @@ EVENT_RECORD = 69
 
 # A type-1 event is a hit taken by that track. Byte 8 is the kind of hit. Kind 1 is an
 # ordinary scored hit and its count matches m_hits. Kind 6 matches m_stuns and kind 7
-# m_punishmentStuns. Kinds 2 and 5 are the blows that start a knockdown count.
+# m_punishmentStuns. Kinds 2, 3, 4, and 5 are the blows that start a knockdown count:
+# 2 is a punishment knockdown (phase 5), 3 a flash knockdown, 4 a TKO stoppage blow
+# (phase 6), and 5 a KO stoppage blow (phase 6).
 SCORED_HIT_TYPE = 1
 SCORED_HIT_FLAG = 1
 SCORED_HIT_FLAG_OFFSET = 8
 HIT_KIND_SCORED = 1
 HIT_KIND_PUNISHMENT_KNOCKDOWN = 2
-HIT_KIND_KNOCKDOWN = 5
+HIT_KIND_FLASH_KNOCKDOWN = 3
+HIT_KIND_TKO = 4
+HIT_KIND_KNOCKOUT = 5
+HIT_KIND_KNOCKDOWN = HIT_KIND_KNOCKOUT
 HIT_KIND_STUN = 6
 HIT_KIND_PUNISHMENT_STUN = 7
+KNOCKDOWN_HIT_KINDS = (
+    HIT_KIND_PUNISHMENT_KNOCKDOWN,
+    HIT_KIND_FLASH_KNOCKDOWN,
+    HIT_KIND_TKO,
+    HIT_KIND_KNOCKOUT,
+)
 HIT_KIND_LABEL = {
     HIT_KIND_SCORED: "hit",
     HIT_KIND_PUNISHMENT_KNOCKDOWN: "punishment_knockdown",
-    HIT_KIND_KNOCKDOWN: "knockdown",
+    HIT_KIND_FLASH_KNOCKDOWN: "knockdown",
+    HIT_KIND_TKO: "tko",
+    HIT_KIND_KNOCKOUT: "knockout",
     HIT_KIND_STUN: "stun",
     HIT_KIND_PUNISHMENT_STUN: "punishment_stun",
 }
@@ -115,6 +128,10 @@ class PunchRecord:
     speed: float | None = None
     damage: float | None = None
     contact_key: bytes = b""
+    # Slow contact record rescued only by a low-damage or overlapping scored hit; kept out of combos.
+    graze: bool = False
+    # Skeleton trajectory measured on the unclipped track before knockdown-pause stripping.
+    skeleton_trajectory: str | None = None
 
 
 @dataclass(frozen=True)

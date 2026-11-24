@@ -12,6 +12,8 @@ import numpy as np
 from totf_analyzer.models.analytics import (
     CombinationStats,
     ComboPatternStats,
+    ContextBucketStats,
+    ContextStats,
     CornerRound,
     DecodeNote,
     DefenseStats,
@@ -40,15 +42,18 @@ from totf_analyzer.models.analytics import (
     VulnerabilityStats,
     VulnerabilityWindow,
 )
+from totf_analyzer.parser.metadata import classify_session
 from totf_analyzer.parser.session import COLOR_CORNER, CORNER_COLOR, ParsedSession, TrackData
 from totf_analyzer.parser.t2sr import (
     CHEST,
     HAND_LABEL,
-    HIT_KIND_KNOCKDOWN,
+    HIT_KIND_FLASH_KNOCKDOWN,
+    HIT_KIND_KNOCKOUT,
     HIT_KIND_LABEL,
     HIT_KIND_PUNISHMENT_KNOCKDOWN,
     HIT_KIND_PUNISHMENT_STUN,
     HIT_KIND_STUN,
+    HIT_KIND_TKO,
     HEAD,
     HIPS,
     L_ANKLE,
@@ -61,6 +66,7 @@ from totf_analyzer.parser.t2sr import (
     PHASE_KNOCKDOWN,
     PHASE_KNOCKDOWN_FINAL,
     PHASE_ROUND_END,
+    PHASE_WARNING,
     PUNCH_CLASS_LABEL,
     R_ANKLE,
     R_ELBOW,
@@ -101,11 +107,20 @@ CONTACT_LOOKBACK_SEC = 0.15
 CONTACT_LOOKAHEAD_SEC = 0.033
 CONTACT_SMOOTH_TICKS = 3
 CONTACT_CLOSING_MIN = 4.0
+# The puncher's own glove must also close on the target at least this fast so an opponent
+# lunging into a stationary guard does not register as a thrown strike.
+CONTACT_GLOVE_CLOSING_MIN = 2.5
+# Pure downward/backward arm drops past the opponent's head or chest are not strikes.
+ARM_DROP_DY_MAX = -0.15
 SAME_SWING_GRACE_SEC = 0.10
 # A slower contact record still counts when a hit taken by the opponent, not already
 # explained by a counted punch, falls this close to its contact tick.
 SCORED_CONTACT_BEFORE_SEC = 0.025
 SCORED_CONTACT_AFTER_SEC = 0.05
+# A rescued slow contact below this damage (or overlapping a prior same-hand swing) stays
+# attached to its scored hit for official totals, but is flagged as a graze and excluded
+# from combination chains.
+GRAZE_MAX_DAMAGE = 5.0
 TARGET_JOINTS = (HEAD, CHEST, SPINE, HIPS)
 SPEED_BINS = (0.0, 4.0, 6.0, 8.0, 10.0, 12.0, 15.0, 30.0)
 SERIES_STEP_SEC = 0.25
@@ -113,8 +128,9 @@ HEAD_DROP_METERS = 0.28
 HEAD_DROP_TICKS = 48
 HEAD_SPEED_CAP = 5.0
 EXCHANGE_MIN_EACH = 2
-# A round start is two type-5 events this many ticks apart: the warning, then the bell.
+# Fallback gap when phase codes are unavailable: warning-to-bell is ~735 ticks at 120 Hz.
 ROUND_START_GAP = 735
+ROUND_START_TOLERANCE = 12
 # The end bell lands a few ticks after round_duration / fixed_timestep.
 END_BELL_TOLERANCE = 12
 # Punches that land just after the bell still belong to the round.
@@ -148,6 +164,13 @@ WEAVE_WINDOW_SEC = 1.0
 # Event type codes whose counts line up with scorecard totals on schema 15.
 SPEED_SMOOTH_TICKS = 3
 RESULT_EVENT_TYPE = 6
+# Stun duration confirmed on AI tracks via stiffness.bin ([0.45, 0.40, 1.00] recovery at +4.00 s).
+STUN_DURATION_SEC = 4.0
+DEFAULT_CRITICAL_PUNISHMENT_RATIO = 0.60
+ATTACK_AFTER_SEC = 0.30
+STUN_HIT_KINDS = (HIT_KIND_STUN, HIT_KIND_PUNISHMENT_STUN)
+RANGE_ZONES = ("outside", "pocket", "clinch")
+ENGAGEMENT_STATES = ("neutral", "leading", "under_fire", "exchange")
 
 
 def build_analytics(session: ParsedSession) -> FightAnalytics:
@@ -160,7 +183,7 @@ def build_analytics(session: ParsedSession) -> FightAnalytics:
     windows = _round_windows(session)
     active = _within_windows(session, windows)
     pace = sum(window.duration_sec for window in windows) if windows else None
-    offense, defense, moments, series = _measure(
+    offense, defense, context, moments, series = _measure(
         active,
         labels,
         totals,
@@ -177,6 +200,7 @@ def build_analytics(session: ParsedSession) -> FightAnalytics:
         rounds=rounds,
         offense=offense,
         defense=defense,
+        context=context,
         key_moments=moments,
         series=series,
         decode_status=notes,
@@ -191,7 +215,7 @@ def _measure(
     pace_sec: float | None = None,
     clock_ticks: set[int] | None = None,
     windows: list[_RoundWindow] | None = None,
-) -> tuple[list[OffenseStats], list[DefenseStats], list[KeyMoment], list[Series]]:
+) -> tuple[list[OffenseStats], list[DefenseStats], list[ContextStats], list[KeyMoment], list[Series]]:
     bodies = {corner: _body(track) for corner, track in session.tracks.items()}
     landed_events = {
         corner: [event for event in track.events if event.landed_hit]
@@ -260,11 +284,21 @@ def _measure(
     )
     moments.sort(key=lambda item: (item.t_sec, item.type))
     _attach_combinations(session, offense, defense, landed_events, matches, windows or [])
+    context, frame_contexts = _attach_context(
+        session,
+        offense,
+        bodies,
+        landed_events,
+        matches,
+        punch_guards,
+        windows or [],
+    )
     return (
         offense,
         defense,
+        context,
         moments,
-        _series(session, bodies),
+        _series(session, bodies, frame_contexts),
     )
 
 
@@ -328,6 +362,7 @@ def _session_facts(session: ParsedSession, totals: dict[int, dict]) -> SessionFa
     venue = meta.get("m_venue") or {}
     scoring = meta.get("m_scoring") or {}
     method, winner = _result(totals)
+    classification = classify_session(meta)
     return SessionFacts(
         name=str(meta.get("m_name") or session.path.stem),
         source=session.path.name,
@@ -349,6 +384,10 @@ def _session_facts(session: ParsedSession, totals: dict[int, dict]) -> SessionFa
         winner_color=CORNER_COLOR.get(winner) if winner is not None else None,
         red_total_score=scoring.get("m_redTotalScore"),
         blue_total_score=scoring.get("m_blueTotalScore"),
+        match_type=classification["match_type"],
+        activity_type=classification["activity_type"],
+        session_kind=classification["session_kind"],
+        is_training=classification["is_training"],
     )
 
 
@@ -440,7 +479,6 @@ def _round_windows(session: ParsedSession) -> list[_RoundWindow]:
             if event.type_code == 5
         }
     )
-    bells = [tick for prev, tick in zip(ticks, ticks[1:]) if tick - prev == ROUND_START_GAP]
     phases = sorted(
         {
             (event.tick, event.phase)
@@ -449,8 +487,20 @@ def _round_windows(session: ParsedSession) -> list[_RoundWindow]:
             if event.type_code == PHASE_EVENT_TYPE and event.phase is not None
         }
     )
+    starts = [
+        (prev_tick, tick)
+        for (prev_tick, prev_phase), (tick, phase) in zip(phases, phases[1:])
+        if prev_phase == PHASE_WARNING and phase == PHASE_FIGHT and tick > prev_tick
+    ]
+    if not starts and not phases:
+        starts = [
+            (prev, tick)
+            for prev, tick in zip(ticks, ticks[1:])
+            if abs((tick - prev) - ROUND_START_GAP) <= ROUND_START_TOLERANCE
+        ]
+    bells = [bell for _warning, bell in starts]
     windows: list[_RoundWindow] = []
-    for position, bell in enumerate(bells):
+    for position, (warning_tick, bell) in enumerate(starts):
         expected = bell + duration_ticks
         later_bells = [tick for tick in bells[position + 1 :] if tick > bell]
         limit = min(later_bells) if later_bells else session.end_tick + 1
@@ -487,7 +537,7 @@ def _round_windows(session: ParsedSession) -> list[_RoundWindow]:
         windows.append(
             _RoundWindow(
                 index=len(windows),
-                warning_tick=bell - ROUND_START_GAP,
+                warning_tick=warning_tick,
                 bell_tick=bell,
                 end_bell_tick=end_bell,
                 stats_end=stats_end,
@@ -538,18 +588,8 @@ def _clip_track(
     punishment = take(track.punishment_ticks)
     stiffness = take(track.stiffness_ticks)
     guard = take(track.guard_ticks)
-    return TrackData(
-        folder=track.folder,
-        corner=track.corner,
-        color=track.color,
-        name=track.name,
-        is_local_player=track.is_local_player,
-        stance=track.stance,
-        stance_confirmed=track.stance_confirmed,
-        height_m=track.height_m,
-        hand_length_m=track.hand_length_m,
-        ai_archetype=track.ai_archetype,
-        ai_difficulty=track.ai_difficulty,
+    return dataclass_replace(
+        track,
         start_tick=start,
         end_tick=end,
         punches=[punch for punch in track.punches if start <= punch.tick <= end],
@@ -585,20 +625,8 @@ def _filter_track(track: TrackData, windows: list[_RoundWindow]) -> TrackData:
     def inside(tick: int) -> bool:
         return any(window.warning_tick <= tick <= window.stats_end for window in windows)
 
-    return TrackData(
-        folder=track.folder,
-        corner=track.corner,
-        color=track.color,
-        name=track.name,
-        is_local_player=track.is_local_player,
-        stance=track.stance,
-        stance_confirmed=track.stance_confirmed,
-        height_m=track.height_m,
-        hand_length_m=track.hand_length_m,
-        ai_archetype=track.ai_archetype,
-        ai_difficulty=track.ai_difficulty,
-        start_tick=track.start_tick,
-        end_tick=track.end_tick,
+    return dataclass_replace(
+        track,
         punches=[punch for punch in track.punches if inside(punch.tick)],
         rejected_punches=[punch for punch in track.rejected_punches if inside(punch.tick)],
         events=[event for event in track.events if inside(event.tick)],
@@ -641,31 +669,9 @@ def _clock_ticks(windows: list[_RoundWindow]) -> set[int]:
 def _drop_clock_events(track: TrackData, clock: set[int]) -> TrackData:
     if not clock:
         return track
-    return TrackData(
-        folder=track.folder,
-        corner=track.corner,
-        color=track.color,
-        name=track.name,
-        is_local_player=track.is_local_player,
-        stance=track.stance,
-        stance_confirmed=track.stance_confirmed,
-        height_m=track.height_m,
-        hand_length_m=track.hand_length_m,
-        ai_archetype=track.ai_archetype,
-        ai_difficulty=track.ai_difficulty,
-        start_tick=track.start_tick,
-        end_tick=track.end_tick,
-        punches=track.punches,
-        rejected_punches=track.rejected_punches,
+    return dataclass_replace(
+        track,
         events=[event for event in track.events if not (event.type_code == 5 and event.tick in clock)],
-        punishment_ticks=track.punishment_ticks,
-        punishment=track.punishment,
-        stiffness_ticks=track.stiffness_ticks,
-        stiffness=track.stiffness,
-        guard_ticks=track.guard_ticks,
-        guard_primary=track.guard_primary,
-        skeleton_ticks=track.skeleton_ticks,
-        skeleton_pos=track.skeleton_pos,
     )
 
 
@@ -697,7 +703,7 @@ def _attach_rounds(
         window = windows.get(rnd.index)
         if window is None:
             continue
-        offense, defense, moments, series = _measure(
+        offense, defense, context, moments, series = _measure(
             _clip_session(session, window),
             labels,
             _score_totals([rnd]),
@@ -710,6 +716,7 @@ def _attach_rounds(
         rnd.duration_sec = window.duration_sec
         rnd.offense = offense
         rnd.defense = defense
+        rnd.context = context
         rnd.key_moments = moments
         rnd.series = series
 
@@ -852,37 +859,70 @@ def _motion_ticks(punch: PunchRecord, timestep: float) -> tuple[int, int]:
     )
 
 
-def _closing_speeds(track: TrackData, opponent: TrackData, timestep: float) -> list[float | None]:
-    """Per punch record: peak speed (m/s) at which that glove closed on the opponent's head or trunk.
+def _contact_kinematics(
+    track: TrackData, opponent: TrackData, timestep: float
+) -> list[tuple[float | None, float | None, bool]]:
+    """Per punch record: (closing_speed, glove_toward_speed, is_arm_drop).
 
-    The distance is from the glove center to the nearest of the opponent's head, chest, spine, and hips.
-    The peak is over a 3-tick mean, from 0.15 s before the record's launch tick to 0.033 s after it.
+    ``closing_speed`` is the peak 3-tick closing rate (m/s) between the glove center and the nearest
+    of the opponent's head, chest, spine, and hips over [-0.15 s, +0.033 s] around ``launch_tick``.
+    ``glove_toward_speed`` projects only the puncher's own glove velocity onto the unit vector toward
+    that nearest target joint, separating strikes from an opponent lunging into a stationary guard.
+    ``is_arm_drop`` flags pure downward/backward arm drops that never advance toward the opponent.
     """
     ticks = track.skeleton_ticks.astype(np.int64)
     other_ticks = opponent.skeleton_ticks.astype(np.int64)
     if len(ticks) == 0 or len(other_ticks) == 0 or timestep <= 0:
-        return [None for _ in track.punches]
+        return [(None, None, False) for _ in track.punches]
     left, right = _glove_centers(track)
+    forward, right_axis = _local_axes(track, opponent)
     targets = opponent.skeleton_pos[_nearest_index(other_ticks, ticks)][:, list(TARGET_JOINTS)].astype(np.float64)
     before = _tick_radius(CONTACT_LOOKBACK_SEC, timestep)
     after = _tick_radius(CONTACT_LOOKAHEAD_SEC, timestep)
     kernel = np.ones(CONTACT_SMOOTH_TICKS) / CONTACT_SMOOTH_TICKS
-    out: list[float | None] = []
+    out: list[tuple[float | None, float | None, bool]] = []
     for punch in track.punches:
         if punch.hand_index not in HAND_LABEL:
-            out.append(None)
+            out.append((None, None, False))
             continue
         glove = left if punch.hand_index == 1 else right
         lo = int(np.searchsorted(ticks, punch.launch_tick - before, side="left"))
         hi = int(np.searchsorted(ticks, punch.launch_tick + after, side="right"))
         if hi - lo < CONTACT_SMOOTH_TICKS + 1:
-            out.append(None)
+            out.append((None, None, False))
             continue
-        distance = np.linalg.norm(glove[lo:hi, None, :] - targets[lo:hi], axis=2).min(axis=1)
+        diff_all = targets[lo:hi] - glove[lo:hi, None, :]
+        dists = np.linalg.norm(diff_all, axis=2)
+        nearest_joint = dists.argmin(axis=1)
+        distance = dists[np.arange(hi - lo), nearest_joint]
         step_sec = np.diff(ticks[lo:hi]) * timestep
-        closing = -np.diff(distance) / np.where(step_sec > 0, step_sec, timestep)
-        out.append(float(np.convolve(closing, kernel, mode="valid").max()))
+        dt_safe = np.where(step_sec > 0, step_sec, timestep)
+        closing = -np.diff(distance) / dt_safe
+        closing_peak = float(np.convolve(closing, kernel, mode="valid").max())
+
+        nearest_vec = diff_all[np.arange(hi - lo), nearest_joint]
+        unit_to_target = np.divide(
+            nearest_vec, distance[:, None], out=np.zeros_like(nearest_vec), where=distance[:, None] > 1.0e-6
+        )
+        glove_vel = np.diff(glove[lo:hi], axis=0) / dt_safe[:, None]
+        glove_toward = np.sum(glove_vel * unit_to_target[:-1], axis=1)
+        glove_toward_peak = float(np.convolve(glove_toward, kernel, mode="valid").max())
+
+        contact_rel = min(int(np.searchsorted(ticks[lo:hi], punch.launch_tick, side="left")), hi - lo - 1)
+        fwd_all = (glove[lo:hi] - glove[lo]) @ forward[lo]
+        chamber = int(np.argmin(fwd_all[: contact_rel + 1]))
+        max_fwd_gain = float(fwd_all[chamber:].max() - fwd_all[chamber])
+        disp = glove[lo + contact_rel] - glove[lo]
+        net_up = float(disp[1])
+        net_lat = float(disp @ right_axis[lo])
+        arm_drop = (max_fwd_gain < MIN_EXTENSION_M) and (net_up <= ARM_DROP_DY_MAX) and (abs(net_lat) < abs(net_up))
+        out.append((closing_peak, glove_toward_peak, arm_drop))
     return out
+
+
+def _closing_speeds(track: TrackData, opponent: TrackData, timestep: float) -> list[float | None]:
+    """Per punch record: peak speed (m/s) at which that glove closed on the opponent's head or trunk."""
+    return [item[0] for item in _contact_kinematics(track, opponent, timestep)]
 
 
 def _glove_peak_speeds(track: TrackData, timestep: float) -> list[float | None]:
@@ -920,20 +960,24 @@ def _validated_punches(session: ParsedSession) -> ParsedSession:
     A contact record is dropped when it is another contact of a swing already kept on that hand
     (inside it, just after it, or just before a kinematic launch),
     or when its glove was not closing on the opponent fast enough to be a strike
-    (a block, a glove clash, a push, or a parry). Without skeleton frames it is kept.
+    (relative closing < 4.0 m/s, puncher's own glove closing < 2.5 m/s, or a pure downward/backward arm drop).
+    Without skeleton frames it is kept.
     A slow contact record is kept after all when a hit event stores its contact point, or when a hit
     that no kept punch explains sits on its contact tick: the game scored that contact.
-    Every record also gets its peak glove speed from the skeleton.
+    Rescued slow contacts with low damage (< 5.0) or overlapping a prior same-hand swing are flagged
+    as ``graze=True`` so they stay attached to official hit totals while staying out of combination chains.
+    Every record also gets its peak glove speed and unclipped skeleton trajectory.
     """
     timestep = session.fixed_timestep
     grace = _tick_radius(SAME_SWING_GRACE_SEC, timestep)
     tracks: dict[int, TrackData] = {}
     for corner, track in session.tracks.items():
         opponent = session.tracks.get(_opponent(session, corner))
-        speeds = (
-            _closing_speeds(track, opponent, timestep)
-            if opponent is not None and opponent is not track
-            else [None for _ in track.punches]
+        has_opponent = opponent is not None and opponent is not track
+        contact_kin = (
+            _contact_kinematics(track, opponent, timestep)
+            if has_opponent
+            else [(None, None, False) for _ in track.punches]
         )
         swings: dict[int, list[tuple[int, int]]] = defaultdict(list)
         for punch in track.punches:
@@ -941,6 +985,7 @@ def _validated_punches(session: ParsedSession) -> ParsedSession:
                 # A stamp just before the launch tick is the same swing: the game can set launch after first contact.
                 swings[punch.hand_index].append((punch.launch_tick - grace, punch.tick + grace))
         keep = [punch.kinematics for punch in track.punches]
+        rescued = [False for _ in track.punches]
         slow: list[int] = []
         order = sorted(range(len(track.punches)), key=lambda index: (track.punches[index].launch_tick, index))
         for index in order:
@@ -949,22 +994,76 @@ def _validated_punches(session: ParsedSession) -> ParsedSession:
                 continue
             if any(start <= punch.launch_tick <= end for start, end in swings[punch.hand_index]):
                 continue
-            speed = speeds[index]
-            if speed is not None and speed < CONTACT_CLOSING_MIN:
+            closing_speed, glove_toward, arm_drop = contact_kin[index]
+            if (
+                (closing_speed is not None and closing_speed < CONTACT_CLOSING_MIN)
+                or (glove_toward is not None and glove_toward < CONTACT_GLOVE_CLOSING_MIN)
+                or arm_drop
+            ):
                 slow.append(index)
                 continue
             keep[index] = True
             swings[punch.hand_index].append((punch.launch_tick, punch.tick + grace))
-        if slow and opponent is not None and opponent is not track:
+        if slow and has_opponent:
             hit_keys = {event.contact_key for event in opponent.events if event.landed_hit and event.contact_key}
             for index in slow:
                 if track.punches[index].contact_key in hit_keys:
                     keep[index] = True
+                    rescued[index] = True
             slow = [index for index in slow if not keep[index]]
             for index in _scored_contacts(track.punches, keep, slow, opponent.events, timestep):
                 keep[index] = True
+                rescued[index] = True
+
+        # Flag low-damage or overlapping rescued slow contacts as grazes using matched hit damage.
+        graze = [False for _ in track.punches]
+        if any(rescued) and has_opponent:
+            kept_indices = [index for index, flag in enumerate(keep) if flag]
+            kept_punches = [track.punches[index] for index in kept_indices]
+            hits = [event for event in opponent.events if event.landed_hit]
+            matched = _match_punches(kept_punches, hits)
+            matched_damage = {
+                kept_indices[pos]: event.damage for pos, event in matched.items()
+            }
+            kept_order = sorted(
+                kept_indices,
+                key=lambda index: (track.punches[index].launch_tick, track.punches[index].tick, index),
+            )
+            last_end_by_hand: dict[int, int] = {}
+            for index in kept_order:
+                punch = track.punches[index]
+                prev_end = last_end_by_hand.get(punch.hand_index)
+                same_hand_dup = prev_end is not None and (punch.launch_tick - prev_end) <= grace
+                if rescued[index]:
+                    dmg = matched_damage.get(index)
+                    if dmg is None or dmg < GRAZE_MAX_DAMAGE or same_hand_dup:
+                        graze[index] = True
+                last_end_by_hand[punch.hand_index] = max(last_end_by_hand.get(punch.hand_index, -1), punch.tick)
+
         peaks = _glove_peak_speeds(track, timestep)
-        measured = [dataclass_replace(punch, speed=peak) for punch, peak in zip(track.punches, peaks)]
+        # Classify trajectories on the unclipped skeleton before knockdown pauses are stripped.
+        skel_trajectories: list[str | None] = [None for _ in track.punches]
+        if has_opponent and len(track.skeleton_ticks) > 0:
+            forward, right_axis = _local_axes(track, opponent)
+            last_kin_end: dict[int, int] = {}
+            for index in order:
+                punch = track.punches[index]
+                prior_end = last_kin_end.get(punch.hand_index) if punch.kinematics else None
+                skel_trajectories[index] = _skeleton_trajectory(
+                    track,
+                    punch,
+                    forward,
+                    right_axis,
+                    timestep,
+                    prior_kinematic_end=prior_end,
+                )
+                if punch.kinematics:
+                    last_kin_end[punch.hand_index] = max(last_kin_end.get(punch.hand_index, -1), punch.tick)
+
+        measured = [
+            dataclass_replace(punch, speed=peak, graze=is_graze, skeleton_trajectory=skel_traj)
+            for punch, peak, is_graze, skel_traj in zip(track.punches, peaks, graze, skel_trajectories)
+        ]
         tracks[corner] = dataclass_replace(
             track,
             punches=[punch for punch, kept in zip(measured, keep) if kept],
@@ -1018,7 +1117,7 @@ def _label_displacement(hand: str, displacement: np.ndarray) -> str:
     forward, up, lateral = (float(component) / magnitude for component in displacement)
     if up >= UPPERCUT_UP and up >= abs(forward) and up >= abs(lateral):
         return "uppercut"
-    if up <= OVERHAND_DOWN and forward >= abs(lateral):
+    if up <= OVERHAND_DOWN and forward >= 0.0 and abs(lateral) < HOOK_LATERAL:
         return "overhand"
     if abs(lateral) >= HOOK_LATERAL and abs(lateral) >= forward:
         return "left_hook" if hand == "left" else "right_hook"
@@ -1037,12 +1136,44 @@ def _trajectory_family(label: str) -> str | None:
     return None
 
 
+def _classify_chamber_window(
+    points: np.ndarray,
+    ticks_slice: np.ndarray,
+    launch_tick: int,
+    forward_slice: np.ndarray,
+    right_slice: np.ndarray,
+    hand: str,
+) -> str:
+    """Classify a contact/pre-launch window from its chamber frame (minimum forward) to peak."""
+    up = np.array([0.0, 1.0, 0.0])
+    contact_rel = min(int(np.searchsorted(ticks_slice, launch_tick, side="left")), len(points) - 1)
+    if contact_rel >= 1:
+        fwd_proj = (points[: contact_rel + 1] - points[0]) @ forward_slice[0]
+        chamber = int(np.argmin(fwd_proj))
+        if chamber < len(points) - 1:
+            sub = points[chamber:]
+            delta = sub - sub[0]
+            local = np.column_stack((delta @ forward_slice[chamber], delta @ up, delta @ right_slice[chamber]))
+            peak = int(np.argmax(np.linalg.norm(local, axis=1)))
+            if peak > 0:
+                label = _label_displacement(hand, local[peak])
+                if label != "unknown":
+                    return label
+    delta = points - points[0]
+    local = np.column_stack((delta @ forward_slice[0], delta @ up, delta @ right_slice[0]))
+    peak = int(np.argmax(np.linalg.norm(local, axis=1)))
+    if peak == 0:
+        return "unknown"
+    return _label_displacement(hand, local[peak])
+
+
 def _skeleton_trajectory(
     track: TrackData,
     punch: PunchRecord,
     forward: np.ndarray,
     right: np.ndarray,
     timestep: float,
+    prior_kinematic_end: int | None = None,
 ) -> str:
     wrist = _wrist_index(punch.hand_index)
     hand = HAND_LABEL.get(punch.hand_index)
@@ -1055,27 +1186,46 @@ def _skeleton_trajectory(
     if hi - lo < MIN_SKELETON_FRAMES:
         return "unknown"
     points = track.skeleton_pos[lo:hi, wrist].astype(np.float64)
+    if not punch.kinematics:
+        return _classify_chamber_window(points, ticks[lo:hi], punch.launch_tick, forward[lo:hi], right[lo:hi], hand)
     delta = points - points[0]
     up = np.array([0.0, 1.0, 0.0])
     local = np.column_stack((delta @ forward[lo], delta @ up, delta @ right[lo]))
     peak = int(np.argmax(np.linalg.norm(local, axis=1)))
-    if peak == 0:
-        return "unknown"
-    return _label_displacement(hand, local[peak])
+    label = _label_displacement(hand, local[peak]) if peak > 0 else "unknown"
+    if label != "unknown":
+        return label
+    # Some kinematic records stamp launch_tick after peak extension; fall back to pre-launch lookback
+    # only when no prior same-hand kinematic swing just ended (avoiding retraction duplicates).
+    grace = _tick_radius(SAME_SWING_GRACE_SEC, timestep)
+    if prior_kinematic_end is None or (punch.launch_tick - prior_kinematic_end) > grace:
+        pre_lo = int(np.searchsorted(ticks, punch.launch_tick - _tick_radius(CONTACT_LOOKBACK_SEC, timestep), side="left"))
+        pre_hi = int(np.searchsorted(ticks, punch.launch_tick, side="right"))
+        if pre_hi - pre_lo >= MIN_SKELETON_FRAMES:
+            pre_points = track.skeleton_pos[pre_lo:pre_hi, wrist].astype(np.float64)
+            return _classify_chamber_window(
+                pre_points, ticks[pre_lo:pre_hi], punch.launch_tick, forward[pre_lo:pre_hi], right[pre_lo:pre_hi], hand
+            )
+    return "unknown"
 
 
 def _punch_trajectories(
     track: TrackData, opponent: TrackData, notes: list[DecodeNote], timestep: float
 ) -> list[str]:
     """Game class when byte 32 is set; otherwise the skeleton displacement label."""
-    forward, right = _local_axes(track, opponent)
+    need_axes = any(punch.skeleton_trajectory is None for punch in track.punches)
+    forward, right = _local_axes(track, opponent) if need_axes else (np.zeros((0, 3)), np.zeros((0, 3)))
     labels: list[str] = []
     game_count = 0
     compared = 0
     agreed = 0
     for punch in track.punches:
         game = PUNCH_CLASS_LABEL.get(punch.punch_class)
-        skeleton = _skeleton_trajectory(track, punch, forward, right, timestep)
+        skeleton = (
+            punch.skeleton_trajectory
+            if punch.skeleton_trajectory is not None
+            else _skeleton_trajectory(track, punch, forward, right, timestep)
+        )
         if game:
             game_count += 1
             game_family = _trajectory_family(game)
@@ -1455,7 +1605,9 @@ def _offense(
             trajectory=trajectory,
             speed=_finite(punch.speed),
             landed=landed,
+            hit_kind=HIT_KIND_LABEL.get(hit_event.hit_kind, str(hit_event.hit_kind)) if hit_event is not None else None,
             damage=_finite(delta),
+            graze=punch.graze,
             head_slip_m=_finite(launch_slips[index]),
             offhand_in_guard=guard.offhand_in_guard,
             offhand_drop_m=_finite(guard.offhand_drop_m),
@@ -1914,7 +2066,9 @@ def _combination_stats(
     countered: set[int],
 ) -> CombinationStats:
     members = [
-        _GroupedPunch(punch, _round_span(punch, windows), index) for index, punch in enumerate(track.punches)
+        _GroupedPunch(punch, _round_span(punch, windows), index)
+        for index, punch in enumerate(track.punches)
+        if not punch.graze
     ]
     groups = _combo_groups(members, timestep)
     lengths = [len(group) for group in groups]
@@ -2108,6 +2262,349 @@ def _attach_combinations(
             )
 
 
+def _causal_index(source_ticks: np.ndarray, query_ticks: np.ndarray) -> np.ndarray:
+    """Latest source sample at or before each query tick (no lookahead)."""
+    if len(source_ticks) == 0 or len(query_ticks) == 0:
+        return np.zeros(len(query_ticks), dtype=np.int64)
+    idx = np.searchsorted(source_ticks, query_ticks, side="right") - 1
+    return np.clip(idx, 0, len(source_ticks) - 1)
+
+
+def _stun_mask(
+    ticks: np.ndarray,
+    events: list[EventRecord],
+    spans: list[tuple[int, int]],
+    timestep: float,
+) -> np.ndarray:
+    """True strictly after a stun/punishment_stun blow for STUN_DURATION_SEC, clipped to active fighting spans."""
+    mask = np.zeros(len(ticks), dtype=bool)
+    if len(ticks) == 0 or timestep <= 0:
+        return mask
+    stun_ticks = int(round(STUN_DURATION_SEC / timestep))
+    if stun_ticks <= 0:
+        return mask
+    for event in events:
+        if not (event.landed_hit and event.hit_kind in STUN_HIT_KINDS):
+            continue
+        end_tick = event.tick + stun_ticks
+        if spans:
+            span = next((item for item in spans if item[0] <= event.tick <= item[1]), None)
+            if span is None:
+                continue
+            end_tick = min(end_tick, span[1])
+        mask |= (ticks > event.tick) & (ticks <= end_tick)
+    return mask
+
+
+def _punishment_state_arrays(ticks: np.ndarray, track: TrackData) -> tuple[np.ndarray | None, np.ndarray]:
+    """Return (normalized punishment_0 ratio or None, critical-punishment hurt mask)."""
+    hurt = np.zeros(len(ticks), dtype=bool)
+    cap = track.mid_punishment_capacity
+    if len(ticks) == 0 or cap is None or cap <= 0.0 or track.punishment.size == 0 or len(track.punishment_ticks) == 0:
+        return None, hurt
+    idx = _causal_index(track.punishment_ticks.astype(np.int64), ticks)
+    ratio = track.punishment[idx, 0].astype(np.float64) / float(cap)
+    threshold = track.mid_punishment_critical_threshold or DEFAULT_CRITICAL_PUNISHMENT_RATIO
+    hurt = ratio >= float(threshold)
+    return ratio, hurt
+
+
+def _attacking_mask(ticks: np.ndarray, punches: list[PunchRecord], timestep: float) -> np.ndarray:
+    """True from each punch's launch_tick through ATTACK_AFTER_SEC after its end tick."""
+    mask = np.zeros(len(ticks), dtype=bool)
+    if len(ticks) == 0 or timestep <= 0:
+        return mask
+    after_ticks = int(round(ATTACK_AFTER_SEC / timestep))
+    for punch in punches:
+        lo = min(punch.launch_tick, punch.tick)
+        hi = max(punch.launch_tick, punch.tick) + after_ticks
+        start = int(np.searchsorted(ticks, lo, side="left"))
+        stop = int(np.searchsorted(ticks, hi, side="right"))
+        if start < stop:
+            mask[start:stop] = True
+    return mask
+
+
+def _frame_context(
+    session: ParsedSession,
+    track: TrackData,
+    opponent: TrackData,
+    body: dict,
+    spans: list[tuple[int, int]],
+) -> dict:
+    """Compute aligned 120 Hz frame-level fight-state masks for one fighter."""
+    ticks = track.skeleton_ticks.astype(np.int64)
+    count = len(ticks)
+    if spans:
+        in_bell = np.zeros(count, dtype=bool)
+        for start, stop in spans:
+            in_bell |= (ticks >= start) & (ticks <= stop)
+    else:
+        in_bell = np.ones(count, dtype=bool)
+    self_stunned = _stun_mask(ticks, track.events, spans, session.fixed_timestep)
+    opp_stunned = _stun_mask(ticks, opponent.events, spans, session.fixed_timestep)
+    self_pun_ratio, self_hurt = _punishment_state_arrays(ticks, track)
+    _opp_pun_ratio, opp_hurt = _punishment_state_arrays(ticks, opponent)
+    attacking = _attacking_mask(ticks, track.punches, session.fixed_timestep)
+    under_fire = _under_fire_mask(session, track, {"ticks": ticks})
+    has_opponent = count > 0 and len(opponent.skeleton_ticks) > 0
+    if has_opponent:
+        forward, right = _local_axes(track, opponent)
+        pos = track.skeleton_pos.astype(np.float64)
+        nearest = _nearest_index(opponent.skeleton_ticks.astype(np.int64), ticks)
+        delta = opponent.skeleton_pos[nearest, HIPS].astype(np.float64) - pos[:, HIPS]
+        delta[:, 1] = 0.0
+        distance = np.linalg.norm(delta, axis=1)
+        # 0 = outside, 1 = pocket, 2 = clinch
+        range_code = np.where(distance < CLINCH_RANGE_M, 2, np.where(distance <= POCKET_RANGE_M, 1, 0)).astype(np.int8)
+        slip_lat = np.abs(np.sum((pos[:, HEAD] - pos[:, HIPS]) * right, axis=1))
+        off_centerline = slip_lat >= OFF_CENTERLINE_M
+        shoulder, shoulder_ok = _line_angle(pos, L_SHOULDER, R_SHOULDER, forward, right)
+        square_stance = np.abs(shoulder) < SQUARE_BLADE_DEG
+    else:
+        distance = np.zeros(count, dtype=np.float64)
+        range_code = np.zeros(count, dtype=np.int8)
+        off_centerline = np.zeros(count, dtype=bool)
+        shoulder_ok = np.zeros(count, dtype=bool)
+        square_stance = np.zeros(count, dtype=bool)
+    has_guard = body["left"] is not None and body["right"] is not None and len(body["guard"]) == count
+    guard = body["guard"] if has_guard else np.zeros(count, dtype=bool)
+    either_guard = (body["left_guard"] | body["right_guard"]) if has_guard else np.zeros(count, dtype=bool)
+    return {
+        "ticks": ticks,
+        "in_bell": in_bell,
+        "self_stunned": self_stunned,
+        "opp_stunned": opp_stunned,
+        "self_pun_ratio": self_pun_ratio,
+        "self_hurt": self_hurt,
+        "opp_hurt": opp_hurt,
+        "attacking": attacking,
+        "under_fire": under_fire,
+        "has_opponent": has_opponent,
+        "distance": distance,
+        "range_code": range_code,
+        "off_centerline": off_centerline,
+        "shoulder_ok": shoulder_ok,
+        "square_stance": square_stance,
+        "has_guard": has_guard,
+        "guard": guard,
+        "either_guard": either_guard,
+    }
+
+
+def _in_spans(tick: int, spans: list[tuple[int, int]], ticks: np.ndarray) -> bool:
+    if len(ticks) == 0:
+        return False
+    if spans:
+        return any(start <= tick <= stop for start, stop in spans)
+    return int(ticks[0]) <= tick <= int(ticks[-1])
+
+
+def _context_bucket(
+    state: str,
+    state_mask: np.ndarray,
+    ctx: dict,
+    total_bell_frames: int,
+    bell_punches: list[tuple[int, int]],
+    bell_hits: list[tuple[EventRecord, int]],
+    rows: list[PunchRow],
+    punch_guards: list[_PunchGuard],
+    timestep: float,
+) -> ContextBucketStats:
+    frame_mask = ctx["in_bell"] & state_mask
+    frames = int(np.count_nonzero(frame_mask))
+    time_sec = round(frames * timestep, 4)
+    time_share = _share(frames, total_bell_frames)
+    bucket_punches = [idx for idx, fidx in bell_punches if state_mask[fidx]]
+    thrown = len(bucket_punches)
+    landed = sum(1 for idx in bucket_punches if rows[idx].landed)
+    speeds = [rows[idx].speed for idx in bucket_punches if rows[idx].speed is not None]
+    damage_dealt = round(
+        sum(float(rows[idx].damage) for idx in bucket_punches if rows[idx].landed and rows[idx].damage is not None),
+        4,
+    )
+    offhand_rated = [punch_guards[idx] for idx in bucket_punches if punch_guards[idx].rated and punch_guards[idx].offhand_in_guard is not None]
+    offhand_kept = _share(sum(1 for g in offhand_rated if g.offhand_in_guard), len(offhand_rated))
+    non_graze = [idx for idx in bucket_punches if not rows[idx].graze]
+    countered_count = sum(1 for idx in non_graze if rows[idx].countered)
+    guard_pct = _mask_percent(ctx["guard"][frame_mask]) if frames and ctx["has_guard"] else None
+    either_pct = _mask_percent(ctx["either_guard"][frame_mask]) if frames and ctx["has_guard"] else None
+    off_center_pct = _mask_percent(ctx["off_centerline"][frame_mask]) if frames and ctx["has_opponent"] else None
+    square_frames = frame_mask & ctx["shoulder_ok"]
+    square_pct = _mask_percent(ctx["square_stance"][square_frames]) if np.any(square_frames) else None
+    bucket_hits = [ev for ev, fidx in bell_hits if state_mask[fidx]]
+    hits_taken = len(bucket_hits)
+    damage_taken = round(sum(float(ev.damage) for ev in bucket_hits if ev.damage is not None), 4)
+    stuns_taken = sum(1 for ev in bucket_hits if ev.hit_kind in STUN_HIT_KINDS)
+    minutes = time_sec / 60.0 if time_sec > 0.0 else 0.0
+    return ContextBucketStats(
+        state=state,
+        time_sec=time_sec,
+        time_share=_finite(time_share),
+        thrown=thrown,
+        landed=landed,
+        accuracy=_ratio(landed, thrown),
+        punches_per_minute=_finite(thrown / minutes) if minutes > 0.0 else None,
+        mean_speed=_mean(speeds),
+        damage_dealt=damage_dealt,
+        guard_up_percent=_finite(guard_pct),
+        either_guard_up_percent=_finite(either_pct),
+        offhand_guard_kept_percent=_finite(offhand_kept),
+        off_centerline_percent=_finite(off_center_pct),
+        square_stance_percent=_finite(square_pct),
+        hits_taken=hits_taken,
+        hits_taken_per_minute=_finite(hits_taken / minutes) if minutes > 0.0 else None,
+        damage_taken=damage_taken,
+        stuns_taken=stuns_taken,
+        countered_count=countered_count,
+        countered_rate=_ratio(countered_count, len(non_graze)),
+    )
+
+
+def _attach_context(
+    session: ParsedSession,
+    offense: list[OffenseStats],
+    bodies: dict[int, dict],
+    landed_events: dict[int, list[EventRecord]],
+    matches: dict[int, dict[int, EventRecord]],
+    punch_guards: dict[int, list[_PunchGuard]],
+    windows: list[_RoundWindow],
+) -> tuple[list[ContextStats], dict[int, dict]]:
+    """Tag per-punch contextual fields and aggregate situational breakdowns per corner."""
+    spans = _bell_spans(windows)
+    offense_by = {item.corner: item for item in offense}
+    frame_contexts: dict[int, dict] = {}
+    stats_out: list[ContextStats] = []
+    dt = session.fixed_timestep
+
+    for track in _ordered(session):
+        opponent = session.tracks[_opponent(session, track.corner)]
+        ctx = _frame_context(session, track, opponent, bodies[track.corner], spans)
+        frame_contexts[track.corner] = ctx
+        ticks = ctx["ticks"]
+        off_block = offense_by.get(track.corner)
+        rows = off_block.punches if off_block is not None else []
+        guards = punch_guards.get(track.corner, [])
+
+        bell_punches: list[tuple[int, int]] = []
+        if len(ticks) > 0 and track.punches:
+            launch_ticks = np.array([p.launch_tick for p in track.punches], dtype=np.int64)
+            near_idx = _nearest_index(ticks, launch_ticks)
+            for idx, punch in enumerate(track.punches):
+                fidx = int(near_idx[idx])
+                if abs(int(ticks[fidx]) - punch.launch_tick) <= 6 and idx < len(rows):
+                    row = rows[idx]
+                    row.self_stunned = bool(ctx["self_stunned"][fidx])
+                    row.opponent_stunned = bool(ctx["opp_stunned"][fidx])
+                    row.self_hurt = bool(ctx["self_hurt"][fidx])
+                    row.opponent_hurt = bool(ctx["opp_hurt"][fidx])
+                    if ctx["has_opponent"]:
+                        row.range_zone = RANGE_ZONES[int(ctx["range_code"][fidx])]
+                        row.fighter_distance_m = _finite(round(float(ctx["distance"][fidx]), 4))
+                    row.under_fire = bool(ctx["under_fire"][fidx])
+                    row.in_exchange = bool(ctx["under_fire"][fidx])
+                if _in_spans(punch.launch_tick, spans, ticks):
+                    bell_punches.append((idx, fidx))
+
+        bell_hits: list[tuple[EventRecord, int]] = []
+        taken = landed_events.get(track.corner, [])
+        if len(ticks) > 0 and taken:
+            hit_ticks = np.array([ev.tick for ev in taken], dtype=np.int64)
+            hit_idx = _nearest_index(ticks, hit_ticks)
+            for ev, fidx in zip(taken, hit_idx, strict=True):
+                if _in_spans(ev.tick, spans, ticks):
+                    bell_hits.append((ev, int(fidx)))
+
+        total_bell_frames = int(np.count_nonzero(ctx["in_bell"]))
+
+        def _build(pairs: list[tuple[str, np.ndarray]], optional_tail: tuple[str, np.ndarray] | None = None) -> list[ContextBucketStats]:
+            out = [
+                _context_bucket(
+                    name,
+                    mask,
+                    ctx,
+                    total_bell_frames,
+                    bell_punches,
+                    bell_hits,
+                    rows,
+                    guards,
+                    dt,
+                )
+                for name, mask in pairs
+            ]
+            if optional_tail is not None:
+                opt_name, opt_mask = optional_tail
+                if np.any(ctx["in_bell"] & opt_mask):
+                    out.append(
+                        _context_bucket(
+                            opt_name,
+                            opt_mask,
+                            ctx,
+                            total_bell_frames,
+                            bell_punches,
+                            bell_hits,
+                            rows,
+                            guards,
+                            dt,
+                        )
+                    )
+            return out
+
+        s_self = ctx["self_stunned"]
+        s_opp = ctx["opp_stunned"]
+        by_stun = _build(
+            [
+                ("neutral", ~s_self & ~s_opp),
+                ("opponent_stunned", ~s_self & s_opp),
+                ("self_stunned", s_self & ~s_opp),
+            ],
+            optional_tail=("both_stunned", s_self & s_opp),
+        )
+
+        h_self = ctx["self_hurt"]
+        h_opp = ctx["opp_hurt"]
+        by_pun = _build(
+            [
+                ("neutral", ~h_self & ~h_opp),
+                ("opponent_hurt", ~h_self & h_opp),
+                ("self_hurt", h_self & ~h_opp),
+            ],
+            optional_tail=("both_hurt", h_self & h_opp),
+        )
+
+        rc = ctx["range_code"]
+        by_range = _build(
+            [
+                ("outside", rc == 0),
+                ("pocket", rc == 1),
+                ("clinch", rc == 2),
+            ]
+        )
+
+        atk = ctx["attacking"]
+        uf = ctx["under_fire"]
+        by_eng = _build(
+            [
+                ("neutral", ~atk & ~uf),
+                ("leading", atk & ~uf),
+                ("under_fire", ~atk & uf),
+                ("exchange", atk & uf),
+            ]
+        )
+
+        stats_out.append(
+            ContextStats(
+                corner=track.corner,
+                by_stun_state=by_stun,
+                by_punishment_state=by_pun,
+                by_range_zone=by_range,
+                by_engagement_state=by_eng,
+            )
+        )
+
+    return stats_out, frame_contexts
+
+
 def _combo_angles(
     track: TrackData,
     ticks: np.ndarray,
@@ -2120,6 +2617,8 @@ def _combo_angles(
     exit_ticks = int(round(COMBO_EXIT_SEC / timestep))
     members: list[_GroupedPunch] = []
     for punch in track.punches:
+        if punch.graze:
+            continue
         span = next((item for item in spans if item[0] <= punch.launch_tick <= item[1]), None)
         if span is not None:
             members.append(_GroupedPunch(punch, span))
@@ -2519,7 +3018,9 @@ def _outcome_moments(
         HIT_KIND_STUN: "stun",
         HIT_KIND_PUNISHMENT_STUN: "punishment_stun",
         HIT_KIND_PUNISHMENT_KNOCKDOWN: "knockdown",
-        HIT_KIND_KNOCKDOWN: "knockdown",
+        HIT_KIND_FLASH_KNOCKDOWN: "knockdown",
+        HIT_KIND_TKO: "knockdown",
+        HIT_KIND_KNOCKOUT: "knockdown",
     }
     counts: dict[tuple[int, str], int] = defaultdict(int)
     for track in session.tracks.values():
@@ -2546,7 +3047,7 @@ def _outcome_moments(
         (
             "knockdown",
             "all_knockdowns",
-            "A knockdown is timed at the blow that starts the count: a hit taken whose byte 8 is 2 or 5.",
+            "A knockdown is timed at the blow that starts the count: a hit taken whose byte 8 is 2, 3, 4 (TKO), or 5 (KO).",
         ),
     ):
         expected = {corner: int(row.get(field, 0)) for corner, row in totals.items()}
@@ -2566,7 +3067,10 @@ def _outcome_moments(
             )
         )
     ko_corners = [corner for corner, row in totals.items() if row.get("knocked_out")]
-    if len(ko_corners) == 1:
+    tko_corners = [corner for corner, row in totals.items() if row.get("technically_knocked_out")]
+    stoppage_corner = ko_corners[0] if len(ko_corners) == 1 else (tko_corners[0] if len(tko_corners) == 1 else None)
+    stoppage_type = "knockout" if len(ko_corners) == 1 else ("tko" if len(tko_corners) == 1 else None)
+    if stoppage_corner is not None and stoppage_type is not None:
         stops = sorted(
             {
                 event.tick
@@ -2587,14 +3091,14 @@ def _outcome_moments(
         if tick is not None:
             notes.append(
                 DecodeNote(
-                    field="timeline.knockout",
+                    field=f"timeline.{stoppage_type}",
                     confidence="inferred",
                     note=(
-                        "The knockout is timed at the type-5 phase marker whose byte 9 is 9 (fight over), "
-                        "on the corner the scorecard flags knocked out. "
+                        f"The {stoppage_type} is timed at the type-5 phase marker whose byte 9 is 9 (fight over), "
+                        "on the corner the scorecard flags stopped. "
                         "The type-6 event is the result announcement a few seconds later."
                         if stops
-                        else "No fight-over phase marker was found, so the knockout is timed at the type-6 result event."
+                        else f"No fight-over phase marker was found, so the {stoppage_type} is timed at the type-6 result event."
                     ),
                 )
             )
@@ -2602,8 +3106,8 @@ def _outcome_moments(
                 KeyMoment(
                     t_sec=_sec(session, tick),
                     tick=tick,
-                    type="knockout",
-                    corners=[ko_corners[0]],
+                    type=stoppage_type,
+                    corners=[stoppage_corner],
                     detail={"marker": "fight_over_phase" if stops else "result_event"},
                 )
             )
@@ -2757,7 +3261,7 @@ def _bucket(times: np.ndarray, values: np.ndarray, step: float) -> tuple[list[fl
     return out_t, out_y
 
 
-def _series(session: ParsedSession, bodies: dict[int, dict]) -> list[Series]:
+def _series(session: ParsedSession, bodies: dict[int, dict], frame_contexts: dict[int, dict] | None = None) -> list[Series]:
     series: list[Series] = []
     for track in _ordered(session):
         t_pun = np.array([_sec(session, int(tick)) for tick in track.punishment_ticks])
@@ -2777,6 +3281,13 @@ def _series(session: ParsedSession, bodies: dict[int, dict]) -> list[Series]:
         series.append(Series(name="left_guard_up", corner=track.corner, t=ts, y=ys))
         ts, ys = _bucket(t_body, body["right_guard"].astype(np.float32), 1.0)
         series.append(Series(name="right_guard_up", corner=track.corner, t=ts, y=ys))
+        ctx = (frame_contexts or {}).get(track.corner)
+        if ctx is not None and len(t_body):
+            ts, ys = _bucket(t_body, ctx["self_stunned"].astype(np.float32), SERIES_STEP_SEC)
+            series.append(Series(name="stunned", corner=track.corner, t=ts, y=ys))
+            if ctx["self_pun_ratio"] is not None:
+                ts, ys = _bucket(t_body, ctx["self_pun_ratio"].astype(np.float32), SERIES_STEP_SEC)
+                series.append(Series(name="punishment_ratio", corner=track.corner, t=ts, y=ys))
         head = body["head_xyz"]
         if len(head) > 1:
             speed = _head_speed(head, session.fixed_timestep)
@@ -2849,8 +3360,8 @@ def _static_notes() -> list[DecodeNote]:
             note=(
                 "A type-5 event marks a change of match phase, and byte 9 is the phase: 2 warning, 4 fight, 3 round end, "
                 "5 and 6 a knockdown count, 9 fight over, 10 end of recording. "
-                "A completed round runs from the warning to just after the round ends. "
-                "The warning and the bell are 735 ticks apart. The round ends at the first round-end or fight-over marker, "
+                "A completed round runs from the warning (phase 2) to just after the round ends, with the bell at the "
+                "following fight marker (phase 4). The round ends at the first round-end or fight-over marker, "
                 "so a stoppage ends the round there and not at the end of the recording. "
                 "Skeleton, guard, and meter samples inside a knockdown count are left out, "
                 "and a round's duration_sec is its fighting time: bell to end, less the counts. "
@@ -2864,6 +3375,15 @@ def _static_notes() -> list[DecodeNote]:
             note="Corner 1 is blue and corner 2 is red. Round points, hits taken, stuns, knockdowns, and knockouts belong to that corner.",
         ),
         DecodeNote(
+            field="session.session_kind",
+            confidence="confirmed",
+            note=(
+                "Sessions scheduled as 1x0:35 (1 round of 35 s) or carrying training/defensive markers in "
+                "m_matchType / m_activityType are flagged session_kind='training' (is_training=true); "
+                "all other bouts are flagged session_kind='match'."
+            ),
+        ),
+        DecodeNote(
             field="offense.thrown",
             confidence="inferred",
             note=(
@@ -2872,7 +3392,9 @@ def _static_notes() -> list[DecodeNote]:
                 "Every other record is a fixed 12-tick glove-contact stamp with no class, "
                 "and the game writes one for blocks, glove clashes, and pushes as well as for strikes. "
                 f"contact_thrown counts the contact records whose glove closed on the opponent's head or trunk at "
-                f"{CONTACT_CLOSING_MIN:.1f} m/s or more (3-tick mean) in the {CONTACT_LOOKBACK_SEC:.2f} s before the contact, "
+                f"{CONTACT_CLOSING_MIN:.1f} m/s or more (3-tick mean) with the puncher's own glove closing at "
+                f"{CONTACT_GLOVE_CLOSING_MIN:.1f} m/s or more in the {CONTACT_LOOKBACK_SEC:.2f} s before the contact "
+                "(excluding pure downward/backward arm drops), "
                 f"and that do not fall inside a swing already counted on that hand, within {SAME_SWING_GRACE_SEC:.2f} s of its end, "
                 f"or within {SAME_SWING_GRACE_SEC:.2f} s before a kinematic launch on that hand. "
                 "A slower contact record also counts when a hit event stores its contact point, "
@@ -2893,8 +3415,10 @@ def _static_notes() -> list[DecodeNote]:
             confidence="confirmed",
             note=(
                 "Byte 32 is the game punch class: 1 jab, 2 cross, 3 left_hook, 4 right_hook, 6 uppercut. "
-                "Class 0 is the wrist's launch-to-peak displacement in the opponent frame "
-                "(forward, up, right), labeled jab, cross, left_hook, right_hook, uppercut, overhand, or unknown."
+                "Class 0 is the wrist's displacement in the opponent frame (forward, up, right), "
+                "measured on the unclipped skeleton from launch to peak for kinematic records "
+                "(falling back to the pre-launch swing if launch was stamped late) and from the pre-contact chamber "
+                "frame to peak for contact records, labeled jab, cross, left_hook, right_hook, uppercut, overhand, or unknown."
             ),
         ),
         DecodeNote(
@@ -2913,6 +3437,8 @@ def _static_notes() -> list[DecodeNote]:
             note=(
                 f"A new combination starts when launch ticks are more than {COMBO_GAP_SEC:.2f} s apart, "
                 "or the punches fall in different rounds. "
+                f"Rescued slow contacts with under {GRAZE_MAX_DAMAGE:.1f} damage or overlapping a prior same-hand swing "
+                "are flagged graze=true: they stay in offense.punches and landed totals, but are excluded from combination chains. "
                 "single_shot_percent is the share of combinations with one punch. "
                 "alternating_hand_percent is the share of multi-punch combinations whose hands strictly alternate. "
                 "Depth is the punch's place in the combination: 1, 2, 3, 4, and 5+. "
@@ -3045,13 +3571,34 @@ def _static_notes() -> list[DecodeNote]:
             confidence="inferred",
             note=(
                 "launch_sec is the punch record's launch_tick (offset 12) and t_sec is its end tick (offset 0). "
-                "impact_sec is the tick of the hit event paired with the punch, and damage is that event's damage. "
+                "impact_sec is the tick of the hit event paired with the punch, damage is that event's damage, "
+                "and hit_kind labels the hit event kind (hit, stun, punishment_stun, knockdown, punishment_knockdown, tko, knockout). "
                 "A hit event and its punch record store the same contact point, which pairs them exactly. "
                 "A hit with no such record goes to the closest free punch whose launch-to-end window holds it. "
                 "combo_id (1-based within the offense block), combo_depth (1..4, 5+), and countered "
                 "use the same launch-gap groups and counter windows as offense.combinations. "
-                "head_slip_m is the signed projection of (head - hips) onto the fighter's right at launch_tick."
+                "head_slip_m is the signed projection of (head - hips) onto the fighter's right at launch_tick. "
+                "Contextual launch tags (self_stunned, opponent_stunned, self_hurt, opponent_hurt, "
+                "range_zone, fighter_distance_m, under_fire, in_exchange) are sampled at launch_tick."
             ),
+        ),
+        DecodeNote(
+            field="context",
+            confidence="inferred",
+            note=(
+                f"Bell-to-bell situational partitions: stun_state marks {STUN_DURATION_SEC:.1f} s strictly after hit_kind 6/7 "
+                "(confirmed by AI stiffness.bin recovery at +4.00 s, clipped to active fighting spans); "
+                "punishment_state compares causal punishment_0 / MidPunishmentSettings.MeterCapacity against "
+                f"CriticalThreshold (fallback {DEFAULT_CRITICAL_PUNISHMENT_RATIO:.2f}); "
+                f"range_zone splits hip distance at {CLINCH_RANGE_M:.2f} m and {POCKET_RANGE_M:.2f} m; "
+                f"engagement_state combines attacking (launch through end + {ATTACK_AFTER_SEC:.2f} s) with under_fire "
+                "into exchange, leading, under_fire, and neutral."
+            ),
+        ),
+        DecodeNote(
+            field="series.context",
+            confidence="inferred",
+            note="stunned (0..1) and punishment_ratio (punishment_0 / MeterCapacity) are 0.25 s bucket means.",
         ),
         DecodeNote(
             field="series.guard_brace",

@@ -116,6 +116,11 @@ def test_get_punches_filters_combo_fields_and_launch_slips():
 
     by_combo: dict[int, list[dict]] = {}
     for row in punches:
+        if row["graze"]:
+            assert row["combo_id"] is None
+            assert row["combo_depth"] is None
+            assert not row["countered"]
+            continue
         assert row["combo_id"] is not None and row["combo_id"] >= 1
         assert row["combo_depth"] in {"1", "2", "3", "4", "5+"}
         by_combo.setdefault(row["combo_id"], []).append(row)

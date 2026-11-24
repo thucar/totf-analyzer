@@ -53,6 +53,10 @@ class TrackData:
     guard_primary: np.ndarray
     skeleton_ticks: np.ndarray
     skeleton_pos: np.ndarray
+    # Mid-punishment meter settings from m_snapshot.m_punishmentConfigJson (None if unavailable).
+    mid_punishment_capacity: float | None = None
+    mid_punishment_critical_threshold: float | None = None
+    breathing_threshold: float | None = None
     # Punch records that analytics judged not to be punches (set by analytics, empty after load).
     rejected_punches: list[PunchRecord] = field(default_factory=list)
 
@@ -127,6 +131,33 @@ def _hand_length(track_meta: dict) -> float:
     return DEFAULT_HAND_LENGTH_M
 
 
+def _positive_float(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    out = float(value)
+    return out if out > 0.0 else None
+
+
+def _punishment_config(track_meta: dict) -> tuple[float | None, float | None, float | None]:
+    """Return (mid_capacity, mid_critical_threshold, breathing_threshold) from snapshot config JSON."""
+    snapshot = track_meta.get("m_snapshot") or {}
+    raw = snapshot.get("m_punishmentConfigJson")
+    if not isinstance(raw, str) or not raw.strip():
+        return None, None, None
+    try:
+        cfg = json.loads(raw)
+    except json.JSONDecodeError:
+        return None, None, None
+    if not isinstance(cfg, dict):
+        return None, None, None
+    mid = cfg.get("<MidPunishmentSettings>k__BackingField")
+    mid_dict = mid if isinstance(mid, dict) else {}
+    capacity = _positive_float(mid_dict.get("<MeterCapacity>k__BackingField"))
+    critical = _positive_float(mid_dict.get("<CriticalThreshold>k__BackingField"))
+    breathing = _positive_float(cfg.get("<OpponentBreathingStartThreshold>k__BackingField"))
+    return capacity, critical, breathing
+
+
 def _read_track(zf: zipfile.ZipFile, folder: str, meta: dict, origin: int) -> TrackData:
     corner = int(meta["m_corner"])
     color = CORNER_COLOR.get(corner)
@@ -134,6 +165,7 @@ def _read_track(zf: zipfile.ZipFile, folder: str, meta: dict, origin: int) -> Tr
         raise ValueError(f"unsupported corner id {corner}")
     stance, stance_confirmed = _stance(meta)
     ai = meta.get("m_aiOpponent") or {}
+    mid_cap, mid_crit, breathing = _punishment_config(meta)
     punishment_ticks, punishment = read_punishment(zf.read(f"{folder}/punishment.bin"), origin)
     stiffness_ticks, stiffness = read_stiffness(zf.read(f"{folder}/stiffness.bin"), origin)
     guard_ticks, guard_primary = read_guard_channels(zf.read(f"{folder}/guard.bin"), origin)
@@ -162,6 +194,9 @@ def _read_track(zf: zipfile.ZipFile, folder: str, meta: dict, origin: int) -> Tr
         guard_primary=guard_primary,
         skeleton_ticks=skeleton_ticks,
         skeleton_pos=skeleton_pos,
+        mid_punishment_capacity=mid_cap,
+        mid_punishment_critical_threshold=mid_crit,
+        breathing_threshold=breathing,
     )
 
 
