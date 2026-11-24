@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CartesianGrid,
   Legend,
@@ -17,11 +17,14 @@ import {
   MUTED_HEX,
   RED_HEX,
   RED_SOFT_HEX,
+  type CornerColor,
   clampPct,
   clockWhole,
   cornerColor,
   formatTrajectoryLabel,
   getFighter,
+  getFighterRoles,
+  getFocalColor,
   num,
   pct,
   pctPts,
@@ -87,16 +90,32 @@ function deltaPctText(early: number | null | undefined, late: number | null | un
 
 export function ForceDegradationView({ report }: { report: FightAnalytics }) {
   const completed = report.rounds.filter((r) => r.completed);
+  const defaultFocal = getFocalColor(report);
+  const [focusCorner, setFocusCorner] = useState<CornerColor>(defaultFocal);
   const [baseIdx, setBaseIdx] = useState(0);
   const [lateIdx, setLateIdx] = useState(Math.max(0, completed.length - 1));
   const [showRed, setShowRed] = useState(true);
   const [showBlue, setShowBlue] = useState(true);
   const [curveMetric, setCurveMetric] = useState<"speed" | "density">("speed");
 
+  useEffect(() => {
+    setFocusCorner(defaultFocal);
+    setBaseIdx(completed[0]?.index ?? 0);
+    setLateIdx(completed[completed.length - 1]?.index ?? 0);
+  }, [report.session.name, defaultFocal, completed.length]);
+
   const red = getFighter(report, "red");
   const blue = getFighter(report, "blue");
   const redName = red?.name ?? "Red";
   const blueName = blue?.name ?? "Blue";
+
+  const { primaryColor, primaryName, opponentName } = getFighterRoles(report, focusCorner);
+  const isPrimaryRed = primaryColor === "red";
+  const primaryTextCls = isPrimaryRed ? "text-primary" : "text-secondary";
+  const primaryBadgeCls = isPrimaryRed
+    ? "bg-on-primary-container text-primary"
+    : "bg-on-secondary-container text-secondary";
+  const oppTextCls = isPrimaryRed ? "text-secondary" : "text-primary";
 
   const safeBaseIdx = completed.some((r) => r.index === baseIdx) ? baseIdx : (completed[0]?.index ?? 0);
   const safeLateIdx = completed.some((r) => r.index === lateIdx)
@@ -116,8 +135,19 @@ export function ForceDegradationView({ report }: { report: FightAnalytics }) {
   const blueBaseDef = rBase?.defense.find((d) => cornerColor(d.corner) === "blue");
   const blueLateDef = rLate?.defense.find((d) => cornerColor(d.corner) === "blue");
 
+  const priBaseOff = isPrimaryRed ? redBaseOff : blueBaseOff;
+  const priLateOff = isPrimaryRed ? redLateOff : blueLateOff;
+  const oppLateOff = isPrimaryRed ? blueLateOff : redLateOff;
+  const priBaseDef = isPrimaryRed ? redBaseDef : blueBaseDef;
+  const priLateDef = isPrimaryRed ? redLateDef : blueLateDef;
+  const oppLateDef = isPrimaryRed ? blueLateDef : redLateDef;
+  const priBaseInflicted = isPrimaryRed ? rBase?.blue.received_damage : rBase?.red.received_damage;
+  const priLateInflicted = isPrimaryRed ? rLate?.blue.received_damage : rLate?.red.received_damage;
+  const priLateStunsInflicted = isPrimaryRed ? (rLate?.blue.stuns ?? 0) : (rLate?.red.stuns ?? 0);
+
   const hasBlueSpeed = (blueBaseOff?.velocity.samples ?? 0) > 0 || (blueLateOff?.velocity.samples ?? 0) > 0;
-  const effectiveCurveMode = curveMetric === "speed" && (redBaseOff?.velocity.samples ?? 0) === 0 ? "density" : curveMetric;
+  const hasRedSpeed = (redBaseOff?.velocity.samples ?? 0) > 0 || (redLateOff?.velocity.samples ?? 0) > 0;
+  const effectiveCurveMode = curveMetric === "speed" && !hasRedSpeed && !hasBlueSpeed ? "density" : curveMetric;
 
   const maxRoundSec = Math.max(
     60,
@@ -219,15 +249,16 @@ export function ForceDegradationView({ report }: { report: FightAnalytics }) {
           </div>
         </div>
 
-        {/* Round Pair Selector + Corner Trace Toggles */}
+        {/* Round Pair Selector + KPI Focus + Chart Trace Toggles */}
         <div className="flex items-center gap-space-sm flex-wrap">
           {completed.length >= 2 && (
             <div className="flex items-center gap-space-xs bg-surface-container-low p-space-xs rounded font-label-data text-label-data">
               <span className="text-outline px-1">Baseline:</span>
               <select
+                aria-label="Baseline round"
                 value={safeBaseIdx}
                 onChange={(e) => setBaseIdx(Number(e.target.value))}
-                className="bg-surface-container-lowest text-on-surface px-2 py-1 rounded outline-none"
+                className="min-h-[32px] bg-surface-container-lowest text-on-surface px-2 py-1 rounded outline-none cursor-pointer"
               >
                 {completed.map((r) => (
                   <option key={r.index} value={r.index}>
@@ -237,9 +268,10 @@ export function ForceDegradationView({ report }: { report: FightAnalytics }) {
               </select>
               <span className="text-outline px-1">vs</span>
               <select
+                aria-label="Comparison round"
                 value={safeLateIdx}
                 onChange={(e) => setLateIdx(Number(e.target.value))}
-                className="bg-surface-container-lowest text-on-surface px-2 py-1 rounded outline-none"
+                className="min-h-[32px] bg-surface-container-lowest text-on-surface px-2 py-1 rounded outline-none cursor-pointer"
               >
                 {completed.map((r) => (
                   <option key={r.index} value={r.index}>
@@ -250,54 +282,59 @@ export function ForceDegradationView({ report }: { report: FightAnalytics }) {
             </div>
           )}
 
-          <div className="flex items-center bg-surface-container-lowest p-space-xs rounded gap-1">
+          <div className="flex items-center bg-surface-container-lowest p-0.5 rounded gap-1">
+            <span className="font-label-caps text-label-caps text-outline px-space-xs hidden sm:inline">KPIs:</span>
             <button
               type="button"
-              onClick={() => setShowRed((v) => !v)}
-              className={`px-space-sm py-space-xs rounded font-label-caps text-label-caps transition-all flex items-center gap-1.5 ${
-                showRed ? "bg-on-primary-container text-primary" : "text-outline opacity-50"
+              aria-pressed={focusCorner === "red"}
+              onClick={() => setFocusCorner("red")}
+              className={`min-h-[32px] px-space-sm py-1 rounded font-label-caps text-label-caps font-bold transition-colors ${
+                focusCorner === "red"
+                  ? "bg-on-primary-container text-primary"
+                  : "text-outline hover:text-on-surface"
               }`}
             >
-              <span className="w-2 h-2 rounded-full bg-primary-container" />
               {redName}
             </button>
             <button
               type="button"
-              onClick={() => setShowBlue((v) => !v)}
-              className={`px-space-sm py-space-xs rounded font-label-caps text-label-caps transition-all flex items-center gap-1.5 ${
-                showBlue ? "bg-on-secondary-container text-secondary" : "text-outline opacity-50"
+              aria-pressed={focusCorner === "blue"}
+              onClick={() => setFocusCorner("blue")}
+              className={`min-h-[32px] px-space-sm py-1 rounded font-label-caps text-label-caps font-bold transition-colors ${
+                focusCorner === "blue"
+                  ? "bg-on-secondary-container text-secondary"
+                  : "text-outline hover:text-on-surface"
               }`}
             >
-              <span className="w-2 h-2 rounded-full bg-secondary" />
               {blueName}
             </button>
           </div>
         </div>
       </div>
 
-      {/* Executive KPI Telemetry Grid (Delta Strip Base -> Late) */}
+      {/* Executive KPI Telemetry Grid (Delta Strip Base -> Late for Focus Fighter) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-space-md">
         {/* Card 1: Mean Speed Retention */}
         <div className="bg-surface-container-low rounded p-space-md flex flex-col justify-between shadow-sm">
-          <div className="flex items-start justify-between">
+          <div className="flex items-start justify-between gap-1">
             <span className="font-label-caps text-label-caps text-outline uppercase">Mean Speed Retention</span>
-            <span className="font-label-caps text-label-caps text-primary bg-on-primary-container px-1.5 py-0.5 rounded">
-              {deltaPctText(redBaseOff?.velocity.mean_thrown, redLateOff?.velocity.mean_thrown)}
+            <span className={`font-label-caps text-label-caps px-1.5 py-0.5 rounded font-bold ${primaryBadgeCls}`}>
+              {deltaPctText(priBaseOff?.velocity.mean_thrown, priLateOff?.velocity.mean_thrown)}
             </span>
           </div>
           <div className="my-space-sm">
             <div className="flex items-baseline gap-space-xs">
-              <span className="font-telemetry-metric-lg text-on-surface">
-                {num(redLateOff?.velocity.mean_thrown, 2)}
+              <span className={`font-telemetry-metric-lg font-bold ${primaryTextCls}`}>
+                {num(priLateOff?.velocity.mean_thrown, 2)}
               </span>
               <span className="font-label-data text-outline">m/s ({lateLabel})</span>
             </div>
-            <div className="flex items-center justify-between text-body-sm text-outline mt-1 font-label-data">
+            <div className="flex items-center justify-between text-body-sm text-outline mt-1 font-label-data gap-1">
               <span>
-                {baseLabel}: {num(redBaseOff?.velocity.mean_thrown, 2)} m/s
+                {baseLabel}: {num(priBaseOff?.velocity.mean_thrown, 2)} m/s
               </span>
-              <span className="text-secondary">
-                Opp: {hasBlueSpeed ? `${num(blueLateOff?.velocity.mean_thrown, 2)} m/s` : "n/a"}
+              <span className={`${oppTextCls} truncate`}>
+                {opponentName}: {oppLateOff?.velocity.mean_thrown != null ? `${num(oppLateOff.velocity.mean_thrown, 2)}` : "—"}
               </span>
             </div>
           </div>
@@ -305,23 +342,25 @@ export function ForceDegradationView({ report }: { report: FightAnalytics }) {
 
         {/* Card 2: Accuracy Shift */}
         <div className="bg-surface-container-low rounded p-space-md flex flex-col justify-between shadow-sm">
-          <div className="flex items-start justify-between">
+          <div className="flex items-start justify-between gap-1">
             <span className="font-label-caps text-label-caps text-outline uppercase">Accuracy Shift</span>
-            <span className="font-label-caps text-label-caps text-tertiary bg-on-tertiary-container px-1.5 py-0.5 rounded">
-              {deltaPctText(redBaseOff?.accuracy, redLateOff?.accuracy)}
+            <span className="font-label-caps text-label-caps text-tertiary bg-on-tertiary-container px-1.5 py-0.5 rounded font-bold">
+              {deltaPctText(priBaseOff?.accuracy, priLateOff?.accuracy)}
             </span>
           </div>
           <div className="my-space-sm">
             <div className="flex items-baseline gap-space-xs">
-              <span className="font-telemetry-metric-lg text-on-surface">{pct(redLateOff?.accuracy)}</span>
+              <span className={`font-telemetry-metric-lg font-bold ${primaryTextCls}`}>
+                {pct(priLateOff?.accuracy)}
+              </span>
               <span className="font-label-data text-outline">({lateLabel})</span>
             </div>
-            <div className="flex items-center justify-between text-body-sm text-outline mt-1 font-label-data">
-              <span className="text-primary">
-                {baseLabel}: {pct(redBaseOff?.accuracy)}
+            <div className="flex items-center justify-between text-body-sm text-outline mt-1 font-label-data gap-1">
+              <span>
+                {baseLabel}: {pct(priBaseOff?.accuracy)}
               </span>
-              <span className="text-secondary">
-                Opp {lateLabel}: {pct(blueLateOff?.accuracy)}
+              <span className={`${oppTextCls} truncate`}>
+                {opponentName}: {pct(oppLateOff?.accuracy)}
               </span>
             </div>
           </div>
@@ -329,76 +368,80 @@ export function ForceDegradationView({ report }: { report: FightAnalytics }) {
 
         {/* Card 3: Punch Frequency */}
         <div className="bg-surface-container-low rounded p-space-md flex flex-col justify-between shadow-sm">
-          <div className="flex items-start justify-between">
+          <div className="flex items-start justify-between gap-1">
             <span className="font-label-caps text-label-caps text-outline uppercase">Punch Frequency</span>
-            <span className="font-label-caps text-label-caps text-secondary bg-on-secondary-container px-1.5 py-0.5 rounded">
-              {deltaPctText(redBaseOff?.punches_per_minute, redLateOff?.punches_per_minute)}
+            <span className={`font-label-caps text-label-caps px-1.5 py-0.5 rounded font-bold ${primaryBadgeCls}`}>
+              {deltaPctText(priBaseOff?.punches_per_minute, priLateOff?.punches_per_minute)}
             </span>
           </div>
           <div className="my-space-sm">
             <div className="flex items-baseline gap-space-xs">
-              <span className="font-telemetry-metric-lg text-on-surface">
-                {num(redLateOff?.punches_per_minute, 1)}
+              <span className={`font-telemetry-metric-lg font-bold ${primaryTextCls}`}>
+                {num(priLateOff?.punches_per_minute, 1)}
               </span>
               <span className="font-label-data text-outline">PPM</span>
             </div>
-            <div className="flex items-center justify-between text-body-sm text-outline mt-1 font-label-data">
+            <div className="flex items-center justify-between text-body-sm text-outline mt-1 font-label-data gap-1">
               <span>
-                {baseLabel}: {num(redBaseOff?.punches_per_minute, 1)} PPM
+                {baseLabel}: {num(priBaseOff?.punches_per_minute, 1)} PPM
               </span>
-              <span className="text-secondary">Opp: {num(blueLateOff?.punches_per_minute, 1)} PPM</span>
+              <span className={`${oppTextCls} truncate`}>
+                {opponentName}: {num(oppLateOff?.punches_per_minute, 1)}
+              </span>
             </div>
           </div>
         </div>
 
         {/* Card 4: Official Damage Inflicted */}
         <div className="bg-surface-container-low rounded p-space-md flex flex-col justify-between shadow-sm">
-          <div className="flex items-start justify-between">
-            <span className="font-label-caps text-label-caps text-outline uppercase">Damage Inflicted (R)</span>
-            <span className="font-label-caps text-label-caps text-primary bg-on-primary-container px-1.5 py-0.5 rounded">
-              {deltaPctText(rBase?.blue.received_damage, rLate?.blue.received_damage)}
+          <div className="flex items-start justify-between gap-1">
+            <span className="font-label-caps text-label-caps text-outline uppercase truncate">
+              Damage Inflicted ({primaryName})
+            </span>
+            <span className={`font-label-caps text-label-caps px-1.5 py-0.5 rounded font-bold shrink-0 ${primaryBadgeCls}`}>
+              {deltaPctText(priBaseInflicted, priLateInflicted)}
             </span>
           </div>
           <div className="my-space-sm">
             <div className="flex items-baseline gap-space-xs">
-              <span className="font-telemetry-metric-lg text-on-surface">
-                {Math.round(rLate?.blue.received_damage ?? 0)}
+              <span className={`font-telemetry-metric-lg font-bold ${primaryTextCls}`}>
+                {Math.round(priLateInflicted ?? 0)}
               </span>
               <span className="font-label-data text-outline">PTS ({lateLabel})</span>
             </div>
             <div className="flex items-center justify-between text-body-sm text-outline mt-1 font-label-data">
-              <span className="text-primary">
-                {baseLabel}: {Math.round(rBase?.blue.received_damage ?? 0)} PTS
+              <span>
+                {baseLabel}: {Math.round(priBaseInflicted ?? 0)} PTS
               </span>
-              <span className="text-outline">Stuns: {rLate?.blue.stuns ?? 0}</span>
+              <span>Stuns: {priLateStunsInflicted}</span>
             </div>
           </div>
         </div>
 
         {/* Card 5: Retraction Latency */}
         <div className="bg-surface-container-low rounded p-space-md flex flex-col justify-between shadow-sm">
-          <div className="flex items-start justify-between">
+          <div className="flex items-start justify-between gap-1">
             <span className="font-label-caps text-label-caps text-outline uppercase">Retraction Median</span>
-            <span className="font-label-caps text-label-caps text-outline bg-surface-container px-1.5 py-0.5 rounded">
+            <span className="font-label-caps text-label-caps text-on-surface bg-surface-container px-1.5 py-0.5 rounded font-bold">
               {deltaPctText(
-                redBaseDef?.guard_discipline.retraction_time_ms.median,
-                redLateDef?.guard_discipline.retraction_time_ms.median,
+                priBaseDef?.guard_discipline.retraction_time_ms.median,
+                priLateDef?.guard_discipline.retraction_time_ms.median,
               )}
             </span>
           </div>
           <div className="my-space-sm">
             <div className="flex items-baseline gap-space-xs">
-              <span className="font-telemetry-metric-lg text-on-surface">
-                {num(redLateDef?.guard_discipline.retraction_time_ms.median, 0)}
+              <span className={`font-telemetry-metric-lg font-bold ${primaryTextCls}`}>
+                {num(priLateDef?.guard_discipline.retraction_time_ms.median, 0)}
               </span>
               <span className="font-label-data text-outline">ms ({lateLabel})</span>
             </div>
-            <div className="flex items-center justify-between text-body-sm text-outline mt-1 font-label-data">
-              <span className="text-primary">
-                {baseLabel}: {num(redBaseDef?.guard_discipline.retraction_time_ms.median, 0)} ms
+            <div className="flex items-center justify-between text-body-sm text-outline mt-1 font-label-data gap-1">
+              <span>
+                {baseLabel}: {num(priBaseDef?.guard_discipline.retraction_time_ms.median, 0)} ms
               </span>
-              <span className="text-secondary">
-                Opp: {num(blueLateDef?.guard_discipline.retraction_time_ms.median, 0)} ms
+              <span className={`${oppTextCls} truncate`}>
+                {opponentName}: {num(oppLateDef?.guard_discipline.retraction_time_ms.median, 0)} ms
               </span>
             </div>
           </div>
@@ -422,25 +465,54 @@ export function ForceDegradationView({ report }: { report: FightAnalytics }) {
                 </span>
               </div>
 
-              <div className="flex items-center bg-surface-container-lowest p-0.5 rounded gap-1">
-                <button
-                  type="button"
-                  onClick={() => setCurveMetric("speed")}
-                  className={`px-space-sm py-0.5 rounded font-label-caps text-label-caps ${
-                    effectiveCurveMode === "speed" ? "bg-surface-bright text-on-surface" : "text-outline"
-                  }`}
-                >
-                  Speed (m/s)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCurveMetric("density")}
-                  className={`px-space-sm py-0.5 rounded font-label-caps text-label-caps ${
-                    effectiveCurveMode === "density" ? "bg-surface-bright text-on-surface" : "text-outline"
-                  }`}
-                >
-                  Pace (PPM)
-                </button>
+              <div className="flex items-center gap-space-xs flex-wrap">
+                <div className="flex items-center bg-surface-container-lowest p-0.5 rounded gap-1">
+                  <button
+                    type="button"
+                    aria-pressed={showRed}
+                    onClick={() => setShowRed((v) => !v)}
+                    className={`min-h-[32px] px-space-sm py-1 rounded font-label-caps text-label-caps transition-all flex items-center gap-1.5 ${
+                      showRed ? "bg-on-primary-container text-primary" : "text-outline opacity-50"
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-primary-container" aria-hidden="true" />
+                    {redName}
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={showBlue}
+                    onClick={() => setShowBlue((v) => !v)}
+                    className={`min-h-[32px] px-space-sm py-1 rounded font-label-caps text-label-caps transition-all flex items-center gap-1.5 ${
+                      showBlue ? "bg-on-secondary-container text-secondary" : "text-outline opacity-50"
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-secondary" aria-hidden="true" />
+                    {blueName}
+                  </button>
+                </div>
+
+                <div className="flex items-center bg-surface-container-lowest p-0.5 rounded gap-1">
+                  <button
+                    type="button"
+                    aria-pressed={effectiveCurveMode === "speed"}
+                    onClick={() => setCurveMetric("speed")}
+                    className={`min-h-[32px] px-space-sm py-1 rounded font-label-caps text-label-caps ${
+                      effectiveCurveMode === "speed" ? "bg-surface-bright text-on-surface" : "text-outline"
+                    }`}
+                  >
+                    Speed (m/s)
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={effectiveCurveMode === "density"}
+                    onClick={() => setCurveMetric("density")}
+                    className={`min-h-[32px] px-space-sm py-1 rounded font-label-caps text-label-caps ${
+                      effectiveCurveMode === "density" ? "bg-surface-bright text-on-surface" : "text-outline"
+                    }`}
+                  >
+                    Pace (PPM)
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -528,9 +600,10 @@ export function ForceDegradationView({ report }: { report: FightAnalytics }) {
                 const rL = redLateOff?.combinations.by_depth.find((x) => x.depth === d);
                 const bB = blueBaseOff?.combinations.by_depth.find((x) => x.depth === d);
                 const bL = blueLateOff?.combinations.by_depth.find((x) => x.depth === d);
-                const barWidth = clampPct((rL?.accuracy ?? 0) * 100);
+                const redAccW = clampPct((rL?.accuracy ?? 0) * 100);
+                const blueAccW = clampPct((bL?.accuracy ?? 0) * 100);
                 return (
-                  <div key={d} className="flex flex-col gap-1">
+                  <div key={d} className="flex flex-col gap-1.5">
                     <div className="flex justify-between items-center font-label-data text-body-sm flex-wrap gap-2">
                       <span className="text-on-surface font-medium">Depth {d}</span>
                       <div className="flex items-center gap-space-md flex-wrap">
@@ -538,17 +611,25 @@ export function ForceDegradationView({ report }: { report: FightAnalytics }) {
                           RED {baseLabel}: {pct(rB?.accuracy)} ({num(rB?.mean_speed, 2)} m/s) → {lateLabel}:{" "}
                           {pct(rL?.accuracy)} ({num(rL?.mean_speed, 2)} m/s)
                         </span>
-                        <span className="text-secondary">
-                          BLU {baseLabel}: {pct(bB?.accuracy)} → {lateLabel}: {pct(bL?.accuracy)}
+                        <span className="text-secondary font-bold">
+                          BLU {baseLabel}: {pct(bB?.accuracy)} ({num(bB?.mean_speed, 2)} m/s) → {lateLabel}:{" "}
+                          {pct(bL?.accuracy)} ({num(bL?.mean_speed, 2)} m/s)
                         </span>
                       </div>
                     </div>
-                    <div className="w-full bg-surface-container-lowest h-2.5 rounded overflow-hidden flex gap-0.5">
-                      <div className="bg-primary h-full rounded-sm" style={{ width: `${barWidth}%` }} />
+                    <div className="space-y-1">
                       <div
-                        className="bg-secondary h-full rounded-sm"
-                        style={{ width: `${clampPct((bL?.accuracy ?? 0) * 100)}%` }}
-                      />
+                        className="w-full bg-surface-container-lowest h-2 rounded overflow-hidden"
+                        title={`${redName} ${lateLabel} accuracy: ${pct(rL?.accuracy)}`}
+                      >
+                        <div className="bg-primary-container h-full rounded-sm" style={{ width: `${redAccW}%` }} />
+                      </div>
+                      <div
+                        className="w-full bg-surface-container-lowest h-2 rounded overflow-hidden"
+                        title={`${blueName} ${lateLabel} accuracy: ${pct(bL?.accuracy)}`}
+                      >
+                        <div className="bg-secondary h-full rounded-sm" style={{ width: `${blueAccW}%` }} />
+                      </div>
                     </div>
                   </div>
                 );

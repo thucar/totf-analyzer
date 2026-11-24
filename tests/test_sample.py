@@ -73,7 +73,7 @@ def test_official_scorecard(report):
     assert rnd.red.hits == 33
     # Landed counts the 4 stuns, 3 punishment stuns, and 2 knockdown blows as well as the 33 scored hits.
     assert by_round[1].landed == rnd.red.hits + rnd.red.stuns + rnd.red.punishment_stuns + rnd.red.all_knockdowns == 42
-    assert by_round[2].thrown == 24
+    assert by_round[2].thrown == 23
     assert by_round[2].landed == rnd.blue.hits == 17
     times = [punch.t_sec for item in rnd.offense for punch in item.punches]
     assert min(times) >= -7
@@ -90,11 +90,11 @@ def test_cross_stream_metrics(report):
     assert by_corner[1].thrown == 68
     assert by_corner[1].landed == 42
     assert by_corner[1].official_hits == 33
-    assert by_corner[2].thrown == 24
+    assert by_corner[2].thrown == 23
     assert by_corner[2].landed == 17
     assert by_corner[2].official_hits == 17
     assert by_corner[1].accuracy == pytest.approx(42 / 68)
-    assert by_corner[2].accuracy == pytest.approx(17 / 24)
+    assert by_corner[2].accuracy == pytest.approx(17 / 23)
     red_hands = {row.hand: row for row in by_corner[1].hands}
     assert sum(row.landed for row in by_corner[1].hands) == 42
     assert sum(row.thrown for row in by_corner[1].hands) == 68
@@ -106,7 +106,7 @@ def test_cross_stream_metrics(report):
     assert by_corner[1].velocity.max_speed > 15.0
     assert by_corner[1].velocity.speed_damage_correlation > 0.2
     assert by_corner[1].velocity.mean_thrown is not None
-    assert by_corner[2].velocity.samples == 24
+    assert by_corner[2].velocity.samples == 23
     trajectories = {row.trajectory: row for row in by_corner[1].trajectories}
     assert {"jab", "cross", "left_hook", "right_hook"} <= set(trajectories)
     assert trajectories["left_hook"].thrown >= 9
@@ -131,11 +131,12 @@ def test_contact_records_are_not_all_punches(report):
     # No hand throws twice inside 0.1 s: a stamp just before a swing's launch is that same swing.
     rows = sorted(by_corner[1].punches, key=lambda punch: punch.launch_sec)
     assert not any(b.launch_sec - a.launch_sec < 0.1 and a.hand == b.hand for a, b in zip(rows, rows[1:]))
-    # The AI track only has contact stamps. Blocks and glove clashes are left out.
+    # The AI track only has contact stamps. Blocks, glove clashes, and arm drops are left out.
     assert by_corner[2].kinematic_thrown == 0
-    assert by_corner[2].contact_thrown == 24
-    assert by_corner[2].discarded_records == 78
+    assert by_corner[2].contact_thrown == 23
+    assert by_corner[2].discarded_records == 79
     assert sum(1 for punch in by_corner[2].punches if punch.landed) == 16
+    assert all(punch.trajectory != "unknown" for off in report.offense for punch in off.punches)
     thrown = next(note for note in report.decode_status if note.field == "offense.thrown")
     assert thrown.confidence == "inferred"
     assert "4.0 m/s" in thrown.note and "contact point" in thrown.note and "discarded_records" in thrown.note
@@ -233,10 +234,16 @@ def test_decision_splits_into_three_rounds():
     fight_thrown = {item.corner: item.thrown for item in report.offense}
     summed = {corner: 0 for corner in fight_thrown}
     for rnd in completed:
-        assert rnd.duration_sec == pytest.approx(120, abs=1)
+        if rnd.red.all_knockdowns + rnd.blue.all_knockdowns == 0:
+            assert rnd.duration_sec == pytest.approx(120, abs=1)
+        else:
+            assert (rnd.end_sec - rnd.bell_sec) >= 119
+            assert 0 < rnd.duration_sec < (rnd.end_sec - rnd.bell_sec)
         by_corner = {item.corner: item for item in rnd.offense}
-        assert by_corner[1].landed == rnd.red.hits
-        assert by_corner[2].landed == rnd.blue.hits
+        assert by_corner[1].official_hits == rnd.red.hits
+        assert by_corner[1].landed == rnd.red.hits + rnd.red.stuns + rnd.red.punishment_stuns + rnd.red.all_knockdowns
+        assert by_corner[2].official_hits == rnd.blue.hits
+        assert by_corner[2].landed == rnd.blue.hits + rnd.blue.stuns + rnd.blue.punishment_stuns + rnd.blue.all_knockdowns
         for corner, item in by_corner.items():
             summed[corner] += item.thrown
         for series in rnd.series:

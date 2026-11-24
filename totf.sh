@@ -1,11 +1,17 @@
 #!/usr/bin/env bash
-# Choose a foreground run, a systemd user-service install, or uninstall.
+# Choose a foreground run, Quest 3 sync, systemd user-service install, or uninstall.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BIN="$ROOT/.venv/bin/totf-analyzer"
 UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
-UNITS=(totf-analyzer-web.service totf-analyzer-mcp.service)
+UNITS=(
+  totf-analyzer-web.service
+  totf-analyzer-mcp.service
+  totf-analyzer-sync.timer
+  totf-analyzer-sync.service
+)
+LEGACY_UNITS=(totf2-sync.timer totf2-sync.service)
 cd "$ROOT"
 
 require_app() {
@@ -68,14 +74,41 @@ run_foreground() {
   cleanup
 }
 
+run_quest_sync() {
+  require_app || return 1
+  export TOTF_RECORDINGS="${TOTF_RECORDINGS:-$ROOT/Recordings}"
+  mkdir -p "$TOTF_RECORDINGS"
+  "$BIN" sync --status || true
+  echo ""
+  "$BIN" sync || true
+}
+
+migrate_legacy_sync_units() {
+  local unit found=0
+  for unit in "${LEGACY_UNITS[@]}"; do
+    if [[ -f "$UNIT_DIR/$unit" ]] || systemctl --user is-enabled --quiet "$unit" 2>/dev/null; then
+      found=1
+      systemctl --user disable --now "$unit" 2>/dev/null || true
+      rm -f "$UNIT_DIR/$unit" "$UNIT_DIR/timers.target.wants/$unit" "$UNIT_DIR/default.target.wants/$unit"
+    fi
+  done
+  if [[ "$found" -eq 1 ]]; then
+    systemctl --user daemon-reload
+    systemctl --user reset-failed "${LEGACY_UNITS[@]}" 2>/dev/null || true
+    echo "Migrated legacy totf2-sync user units to totf-analyzer-sync.timer."
+  fi
+}
+
 install_service() {
   require_app || return 1
+  migrate_legacy_sync_units
   "$ROOT/deploy/setup-services.sh"
-  systemctl --user enable --now totf-analyzer-web.service totf-analyzer-mcp.service
+  systemctl --user enable --now totf-analyzer-web.service totf-analyzer-mcp.service totf-analyzer-sync.timer
   systemctl --user restart totf-analyzer-web.service totf-analyzer-mcp.service
   echo "Installed and started the user services."
   echo "Dashboard  http://127.0.0.1:8000"
   echo "MCP        http://127.0.0.1:8010/mcp"
+  echo "Quest Sync totf-analyzer-sync.timer (polls every 60s)"
   if ! loginctl show-user "$USER" -p Linger --value 2>/dev/null | grep -qx yes; then
     echo "These services stop at logout. To start them at boot:"
     echo "  sudo loginctl enable-linger $USER"
@@ -85,8 +118,8 @@ install_service() {
 uninstall_service() {
   local unit
   for unit in "${UNITS[@]}"; do
-    systemctl --user disable --now "$unit" || true
-    rm -f "$UNIT_DIR/$unit" "$UNIT_DIR/default.target.wants/$unit"
+    systemctl --user disable --now "$unit" 2>/dev/null || true
+    rm -f "$UNIT_DIR/$unit" "$UNIT_DIR/default.target.wants/$unit" "$UNIT_DIR/timers.target.wants/$unit"
   done
   systemctl --user daemon-reload
   systemctl --user reset-failed "${UNITS[@]}" 2>/dev/null || true
@@ -103,16 +136,18 @@ echo "TotF Analyzer"
 PS3="Select: "
 options=(
   "Run now, without installing a service"
-  "Install as a systemd service"
-  "Uninstall the systemd service"
+  "Sync from Quest 3 now (status + pull)"
+  "Install as a systemd service (web, MCP, Quest 3 sync timer)"
+  "Uninstall the systemd services"
   "Quit"
 )
 select _choice in "${options[@]}"; do
   case "$REPLY" in
     1) run_foreground || true ;;
-    2) install_service || true ;;
-    3) uninstall_service || true ;;
-    4) break ;;
-    *) echo "Enter 1, 2, 3, or 4." ;;
+    2) run_quest_sync || true ;;
+    3) install_service || true ;;
+    4) uninstall_service || true ;;
+    5) break ;;
+    *) echo "Enter 1, 2, 3, 4, or 5." ;;
   esac
 done

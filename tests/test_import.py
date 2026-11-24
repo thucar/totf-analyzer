@@ -66,18 +66,34 @@ def test_listing_reads_bout_shorthand_and_time(tmp_path: Path):
     game.mkdir()
     meta = {
         "m_createdUtc": "2026-11-15T03:48:37.9637340Z",
+        "m_matchType": "MatchSingleplayer",
+        "m_activityType": "MatchSingleplayer",
         "m_venue": {"m_rounds": 4, "m_roundDurationSeconds": 180},
+    }
+    training_meta = {
+        "m_createdUtc": "2026-11-15T03:52:02.0803340Z",
+        "m_matchType": "MatchSingleplayerDefenseTraining",
+        "m_activityType": "MatchSingleplayerDefensive",
+        "m_venue": {"m_rounds": 1, "m_roundDurationSeconds": 35.0},
     }
     with zipfile.ZipFile(game / "session_custom.zip", "w") as archive:
         archive.writestr("metadata.json", json.dumps(meta))
+    with zipfile.ZipFile(game / "session_drill.zip", "w") as archive:
+        archive.writestr("metadata.json", json.dumps(training_meta))
     (game / "session_broken.zip").write_bytes(b"PK\x03\x04nope")
 
     client = TestClient(create_app(tmp_path / "library", game))
     rows = {row["name"]: row for row in client.get("/api/game-recordings").json()["recordings"]}
     assert rows["session_custom.zip"]["bout"] == "4x3"
     assert rows["session_custom.zip"]["created"] == "2026-11-15T03:48:37.963Z"
+    assert rows["session_custom.zip"]["session_kind"] == "match"
+    assert rows["session_custom.zip"]["is_training"] is False
+    assert rows["session_drill.zip"]["bout"] == "1x0:35"
+    assert rows["session_drill.zip"]["session_kind"] == "training"
+    assert rows["session_drill.zip"]["is_training"] is True
     assert rows["session_broken.zip"]["bout"] is None
     assert rows["session_broken.zip"]["created"] is None
+    assert rows["session_broken.zip"]["session_kind"] == "match"
 
 
 def test_fight_card_names_winner_and_finish():

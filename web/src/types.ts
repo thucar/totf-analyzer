@@ -22,6 +22,37 @@ export type VulnerabilityWindow = {
   opponent_accuracy: number | null;
 };
 
+export type ContextBucketStats = {
+  state: string;
+  time_sec: number;
+  time_share: number | null;
+  thrown: number;
+  landed: number;
+  accuracy: number | null;
+  punches_per_minute: number | null;
+  mean_speed: number | null;
+  damage_dealt: number;
+  guard_up_percent: number | null;
+  either_guard_up_percent: number | null;
+  offhand_guard_kept_percent: number | null;
+  off_centerline_percent: number | null;
+  square_stance_percent: number | null;
+  hits_taken: number;
+  hits_taken_per_minute: number | null;
+  damage_taken: number;
+  stuns_taken: number;
+  countered_count: number;
+  countered_rate: number | null;
+};
+
+export type ContextStats = {
+  corner: number;
+  by_stun_state: ContextBucketStats[];
+  by_punishment_state: ContextBucketStats[];
+  by_range_zone: ContextBucketStats[];
+  by_engagement_state: ContextBucketStats[];
+};
+
 export type FightAnalytics = {
   session: {
     name: string;
@@ -42,6 +73,10 @@ export type FightAnalytics = {
     start_tick?: number;
     end_tick?: number;
     created_utc?: string | null;
+    match_type?: string | null;
+    activity_type?: string | null;
+    session_kind?: SessionKind;
+    is_training?: boolean;
   };
   fighters: {
     corner: number;
@@ -63,6 +98,7 @@ export type FightAnalytics = {
     duration_sec: number | null;
     offense: FightAnalytics["offense"];
     defense: FightAnalytics["defense"];
+    context?: ContextStats[];
     key_moments: FightAnalytics["key_moments"];
     series: FightAnalytics["series"];
   }[];
@@ -128,10 +164,20 @@ export type FightAnalytics = {
       trajectory: string;
       speed: number | null;
       landed: boolean;
+      hit_kind?: string | null;
       damage: number | null;
+      graze?: boolean;
       combo_id?: number | null;
       combo_depth?: string | null;
       countered?: boolean;
+      self_stunned?: boolean;
+      opponent_stunned?: boolean;
+      self_hurt?: boolean;
+      opponent_hurt?: boolean;
+      range_zone?: string | null;
+      fighter_distance_m?: number | null;
+      in_exchange?: boolean;
+      under_fire?: boolean;
       head_slip_m?: number | null;
       offhand_in_guard: boolean | null;
       offhand_drop_m: number | null;
@@ -212,6 +258,7 @@ export type FightAnalytics = {
       neutral_guard: VulnerabilityWindow;
     };
   }[];
+  context?: ContextStats[];
   key_moments: {
     t_sec: number;
     tick: number;
@@ -222,6 +269,8 @@ export type FightAnalytics = {
   series: { name: string; corner: number | null; t: number[]; y: number[] }[];
   decode_status: { field: string; confidence: string; note: string }[];
 };
+
+export type SessionKind = "match" | "training";
 
 export type SessionRow = {
   name: string;
@@ -235,6 +284,10 @@ export type SessionRow = {
   method: "KO" | "TKO" | "UD" | "draw" | null;
   local: "red" | "blue" | null;
   result: string | null;
+  match_type?: string | null;
+  activity_type?: string | null;
+  session_kind?: SessionKind;
+  is_training?: boolean;
 };
 
 export type GameRecording = SessionRow & { imported: boolean };
@@ -243,4 +296,66 @@ export type GameListing = {
   directory: string;
   available: boolean;
   recordings: GameRecording[];
+};
+
+export type SyncCandidate = {
+  ip: string;
+  port: number;
+  target: string;
+  source: string;
+  status: string;
+};
+
+export type SyncPendingRecording = {
+  name: string;
+  size: number;
+  mtime: number;
+};
+
+export type SyncedRecordingItem = {
+  name: string;
+  size: number;
+  elapsed_sec: number;
+  session_kind: SessionKind;
+  is_training: boolean;
+  match_type: string | null;
+  bout: string | null;
+  copied_to_library: boolean;
+};
+
+export type SyncStatus = {
+  adb_available: boolean;
+  adb_bin: string | null;
+  serial_expected: string | null;
+  dest_dir: string;
+  library_dir: string | null;
+  ledger_path: string;
+  ledger_count: number;
+  sync_in_progress: boolean;
+  candidates: SyncCandidate[];
+  connected_target: string | null;
+  connected_serial: string | null;
+  reboot_hint: string | null;
+  remote_total: number | null;
+  pending: SyncPendingRecording[];
+  already_local: number;
+  skipped_ledger: number;
+  deferred_recent: number;
+  error: string | null;
+};
+
+export type SyncRunResult = {
+  status: "synced" | "up_to_date" | "unreachable" | "locked" | "dry_run" | "error";
+  connected_target: string | null;
+  connected_serial: string | null;
+  pulled: SyncedRecordingItem[];
+  would_pull: SyncPendingRecording[];
+  recorded_existing: number;
+  skipped_ledger: number;
+  deferred_recent: number;
+  remote_total: number;
+  missing_resync: string[];
+  errors: string[];
+  reboot_hint: string | null;
+  message: string;
 };

@@ -7,6 +7,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 Confidence = Literal["confirmed", "inferred", "unavailable"]
+SessionKind = Literal["match", "training"]
 
 
 class DecodeNote(BaseModel):
@@ -53,6 +54,7 @@ class RoundScore(BaseModel):
     duration_sec: float | None = None
     offense: list[OffenseStats] = Field(default_factory=list)
     defense: list[DefenseStats] = Field(default_factory=list)
+    context: list[ContextStats] = Field(default_factory=list)
     key_moments: list[KeyMoment] = Field(default_factory=list)
     series: list[Series] = Field(default_factory=list)
 
@@ -78,6 +80,10 @@ class SessionFacts(BaseModel):
     winner_color: str | None = None
     red_total_score: int | None = None
     blue_total_score: int | None = None
+    match_type: str | None = None
+    activity_type: str | None = None
+    session_kind: SessionKind = "match"
+    is_training: bool = False
 
 
 class HandStats(BaseModel):
@@ -123,10 +129,20 @@ class PunchRow(BaseModel):
     trajectory: str
     speed: float | None = None
     landed: bool
+    hit_kind: str | None = None
     damage: float | None = None
+    graze: bool = False
     combo_id: int | None = None
     combo_depth: str | None = None
     countered: bool = False
+    self_stunned: bool = False
+    opponent_stunned: bool = False
+    self_hurt: bool = False
+    opponent_hurt: bool = False
+    range_zone: str | None = None
+    fighter_distance_m: float | None = None
+    in_exchange: bool = False
+    under_fire: bool = False
     head_slip_m: float | None = None
     # Off-hand fields are null without a peak-extension frame. Retraction fields
     # are also null for a same-hand double-up or a miss inside 800 ms.
@@ -313,6 +329,37 @@ class DefenseStats(BaseModel):
     vulnerability: VulnerabilityStats = Field(default_factory=VulnerabilityStats)
 
 
+class ContextBucketStats(BaseModel):
+    state: str
+    time_sec: float = 0.0
+    time_share: float | None = None
+    thrown: int = 0
+    landed: int = 0
+    accuracy: float | None = None
+    punches_per_minute: float | None = None
+    mean_speed: float | None = None
+    damage_dealt: float = 0.0
+    guard_up_percent: float | None = None
+    either_guard_up_percent: float | None = None
+    offhand_guard_kept_percent: float | None = None
+    off_centerline_percent: float | None = None
+    square_stance_percent: float | None = None
+    hits_taken: int = 0
+    hits_taken_per_minute: float | None = None
+    damage_taken: float = 0.0
+    stuns_taken: int = 0
+    countered_count: int = 0
+    countered_rate: float | None = None
+
+
+class ContextStats(BaseModel):
+    corner: int
+    by_stun_state: list[ContextBucketStats] = Field(default_factory=list)
+    by_punishment_state: list[ContextBucketStats] = Field(default_factory=list)
+    by_range_zone: list[ContextBucketStats] = Field(default_factory=list)
+    by_engagement_state: list[ContextBucketStats] = Field(default_factory=list)
+
+
 class KeyMoment(BaseModel):
     t_sec: float
     tick: int
@@ -334,6 +381,7 @@ class FightAnalytics(BaseModel):
     rounds: list[RoundScore]
     offense: list[OffenseStats]
     defense: list[DefenseStats]
+    context: list[ContextStats] = Field(default_factory=list)
     key_moments: list[KeyMoment]
     series: list[Series]
     decode_status: list[DecodeNote]

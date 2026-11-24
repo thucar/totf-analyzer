@@ -20,11 +20,12 @@ env -u PYTHONPATH -u VIRTUAL_ENV .venv/bin/totf-analyzer mcp --host 127.0.0.1 --
 
 `totf-analyzer` parses Thrill of the Fight 2 (`T2SR` schema-15) session zip archives into deterministic, strictly factual combat telemetry, serving both a local React web dashboard and a Streamable HTTP MCP server.
 
-- **`src/totf_analyzer/parser/`**: Low-level binary readers (`t2sr.py`, `session.py`) for `metadata.json`, `punches.bin`, `events.bin`, `punishment.bin`, `stiffness.bin`, `guard.bin`, and 21-joint `skeleton.bin` streams.
+- **`src/totf_analyzer/parser/`**: Low-level binary readers (`t2sr.py`, `session.py`) and lightweight metadata/training classifier (`metadata.py`) for `metadata.json`, `punches.bin`, `events.bin`, `punishment.bin`, `stiffness.bin`, `guard.bin`, and 21-joint `skeleton.bin` streams.
 - **`src/totf_analyzer/models/`**: Pydantic v2 schemas (`analytics.py`) defining `FightAnalytics` and per-field confidence provenance (`confirmed`, `inferred`, `unavailable`).
 - **`src/totf_analyzer/analytics/`**: Cross-stream biomechanics and striking computation (`metrics.py`) — bell-to-bell round windows, punch-to-scored-hit matching, trajectory classification, guard boxes, punch retraction, footwork/angle cuts, centerline head movement, combination chains, and vulnerability timing windows.
-- **`src/totf_analyzer/api/`**: FastAPI HTTP server (`app.py`) serving `/api/sessions`, `/api/game-recordings`, `/api/sessions/import`, `/api/sessions/{name}/report`, and the compiled React SPA in `web/dist`.
-- **`src/totf_analyzer/mcp_server/`**: Streamable HTTP MCP server (`server.py`) exposing compact summaries and drill-down tools (`list_recordings`, `analyze_recording`, `get_fighter_stats`, `get_punches`, `get_key_moments`, `get_series`).
+- **`src/totf_analyzer/sync/`**: Quest 3 Wi-Fi ADB recording sync (`quest.py`) with mDNS/DHCP/ARP discovery, serial verification, atomic staging + zip CRC validation, XDG ledger (`~/.local/state/totf2-sync/synced.json`), and dual-destination install into Steam Spectator and `Recordings/`.
+- **`src/totf_analyzer/api/`**: FastAPI HTTP server (`app.py`) serving `/api/sessions` (with `?kind=match|training|all`), `/api/game-recordings`, `/api/sessions/import`, `/api/sessions/{name}/report`, `/api/sync/status`, `/api/sync/run`, and the compiled React SPA in `web/dist`.
+- **`src/totf_analyzer/mcp_server/`**: Streamable HTTP MCP server (`server.py`) exposing compact summaries, Quest sync tools (`quest_sync_status`, `sync_quest_recordings`), and drill-down tools (`list_recordings`, `analyze_recording`, `get_fighter_stats`, `get_punches`, `get_key_moments`, `get_series`).
 - **`web/`**: React 19 + TypeScript + Vite + Tailwind CSS (`Apex Telemetry` design system from Stitch project `811732486051757994`) + Recharts dashboard. Reference Stitch HTML/PNG exports live in `docs/stitch/`.
 
 ## Separation of Concerns

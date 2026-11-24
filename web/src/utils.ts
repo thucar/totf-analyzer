@@ -18,7 +18,9 @@ export type ViewId =
 
 export type ScopeSelection = "all" | number;
 
-export function cornerColor(corner: number): "red" | "blue" {
+export type CornerColor = "red" | "blue";
+
+export function cornerColor(corner: number): CornerColor {
   return corner === 2 ? "red" : "blue";
 }
 
@@ -65,8 +67,37 @@ export function clampPct(val: number | null | undefined): number {
   return Math.min(100, Math.max(0, val));
 }
 
-export function getFighter(report: FightAnalytics, color: "red" | "blue") {
+export function getFighter(report: FightAnalytics, color: CornerColor) {
   return report.fighters.find((f) => f.color === color);
+}
+
+export function getFocalColor(report: FightAnalytics): CornerColor {
+  const local = report.fighters.find((f) => f.is_local_player);
+  if (local?.color === "blue" || local?.color === "red") return local.color;
+  return "red";
+}
+
+export function getFighterRoles(report: FightAnalytics, focalOverride?: CornerColor) {
+  const local = report.fighters.find((f) => f.is_local_player);
+  const localColor: CornerColor | null =
+    local?.color === "red" || local?.color === "blue" ? local.color : null;
+  const primaryColor: CornerColor = focalOverride ?? localColor ?? "red";
+  const opponentColor: CornerColor = primaryColor === "red" ? "blue" : "red";
+  const primary = getFighter(report, primaryColor);
+  const opponent = getFighter(report, opponentColor);
+  const primaryName = primary?.name ?? (primaryColor === "red" ? "Red" : "Blue");
+  const opponentName = opponent?.name ?? (opponentColor === "red" ? "Red" : "Blue");
+  return {
+    primary,
+    opponent,
+    primaryColor,
+    opponentColor,
+    primaryName,
+    opponentName,
+    localColor,
+    isLocalIdentified: localColor !== null,
+    isPrimaryLocal: localColor === primaryColor,
+  };
 }
 
 export function getScopeData(report: FightAnalytics, scope: ScopeSelection) {
@@ -74,6 +105,7 @@ export function getScopeData(report: FightAnalytics, scope: ScopeSelection) {
   const round = typeof scope === "number" ? completedRounds.find((r) => r.index === scope) : undefined;
   const offense = round ? round.offense : report.offense;
   const defense = round ? round.defense : report.defense;
+  const context = round ? (round.context ?? []) : (report.context ?? []);
   const keyMoments = round ? round.key_moments : report.key_moments;
   const series = round ? round.series : report.series;
 
@@ -81,6 +113,8 @@ export function getScopeData(report: FightAnalytics, scope: ScopeSelection) {
   const blueOff = offense.find((o) => cornerColor(o.corner) === "blue");
   const redDef = defense.find((d) => cornerColor(d.corner) === "red");
   const blueDef = defense.find((d) => cornerColor(d.corner) === "blue");
+  const redCtx = context.find((c) => cornerColor(c.corner) === "red");
+  const blueCtx = context.find((c) => cornerColor(c.corner) === "blue");
 
   const redStuns = round ? round.red.stuns : completedRounds.reduce((acc, r) => acc + r.red.stuns, 0);
   const blueStuns = round ? round.blue.stuns : completedRounds.reduce((acc, r) => acc + r.blue.stuns, 0);
@@ -102,12 +136,15 @@ export function getScopeData(report: FightAnalytics, scope: ScopeSelection) {
     completedRounds,
     offense,
     defense,
+    context,
     keyMoments,
     series,
     redOff,
     blueOff,
     redDef,
     blueDef,
+    redCtx,
+    blueCtx,
     redStuns,
     blueStuns,
     redKds,
@@ -208,18 +245,26 @@ export function verdictBadge(report: FightAnalytics): string {
     decision: "UD",
   };
   const m = methodMap[report.session.method] ?? report.session.method.toUpperCase();
-  const scorePart =
-    report.session.red_total_score != null && report.session.blue_total_score != null
-      ? ` ${report.session.red_total_score}–${report.session.blue_total_score}`
-      : "";
+  const hasScores =
+    report.session.red_total_score != null && report.session.blue_total_score != null;
+  const scoreFor = (leadColor: CornerColor) => {
+    if (!hasScores) return "";
+    const lead =
+      leadColor === "blue" ? report.session.blue_total_score : report.session.red_total_score;
+    const other =
+      leadColor === "blue" ? report.session.red_total_score : report.session.blue_total_score;
+    return ` ${lead}–${other}`;
+  };
   if (!report.session.winner_color) {
-    return `DRAW${scorePart}`;
+    const leadColor: CornerColor = local?.color === "blue" ? "blue" : "red";
+    return `DRAW${scoreFor(leadColor)}`;
   }
-  if (local) {
+  if (local && (local.color === "red" || local.color === "blue")) {
     const won = report.session.winner_color === local.color;
-    return `${won ? "W" : "L"}-${m}${scorePart}`;
+    return `${won ? "W" : "L"}-${m}${scoreFor(local.color)}`;
   }
-  return `${report.session.winner_color.toUpperCase()} ${m}${scorePart}`;
+  const winColor: CornerColor = report.session.winner_color === "blue" ? "blue" : "red";
+  return `${winColor.toUpperCase()} ${m}${scoreFor(winColor)}`;
 }
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -242,11 +287,20 @@ export function filenameWhen(name: string): string | null {
   return `${day} ${MONTHS[month - 1]} ${match[1]}, ${match[4]}:${match[5]}`;
 }
 
+export function isTrainingSession(row: Pick<SessionRow, "is_training" | "session_kind">): boolean {
+  return Boolean(row.is_training || row.session_kind === "training");
+}
+
+export function formatBytesMb(sizeBytes: number): string {
+  return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export function sessionSelectOptionLabel(row: SessionRow): string {
   const subject = row.local ?? row.winner ?? (row.red ? "red" : row.blue ? "blue" : null);
   const lead = subject === "blue" ? row.blue : subject === "red" ? row.red : null;
   const other = subject === "blue" ? row.red : subject === "red" ? row.blue : null;
   const parts: string[] = [];
+  if (isTrainingSession(row)) parts.push("[Training]");
   if (lead && other) {
     parts.push(`${lead} vs ${other}`);
   } else if (lead || other) {
