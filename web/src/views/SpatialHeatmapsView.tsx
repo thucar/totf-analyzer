@@ -1,12 +1,14 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FightAnalytics } from "../types";
 import {
+  type CornerColor,
   type ScopeSelection,
   clampPct,
   clockWhole,
   cornerColor,
   formatMomentDetail,
   getFighter,
+  getFocalColor,
   getScopeData,
   num,
   pct,
@@ -14,7 +16,6 @@ import {
   roundTimestampLabel,
   seriesMean,
   splitShare,
-  verdictBadge,
 } from "../utils";
 
 type HeatmapLayer = "all" | "red" | "blue" | "trajectory";
@@ -80,22 +81,32 @@ function bladeLineCoords(angleDeg: number | null | undefined): { x1: number; y1:
 export function SpatialHeatmapsView({
   report,
   scope,
-  onSelectScope,
 }: {
   report: FightAnalytics;
   scope: ScopeSelection;
-  onSelectScope: (next: ScopeSelection) => void;
 }) {
+  const focalColor = getFocalColor(report);
   const [layer, setLayer] = useState<HeatmapLayer>("all");
-  const [guardCorner, setGuardCorner] = useState<"red" | "blue">("red");
+  const [guardCorner, setGuardCorner] = useState<CornerColor>(focalColor);
   const [eventFilter, setEventFilter] = useState<"all" | "angle_cut" | "duck_weave">("all");
+  const [eventLimit, setEventLimit] = useState<number>(40);
+
+  useEffect(() => {
+    setGuardCorner(focalColor);
+    setEventFilter("all");
+    setEventLimit(40);
+  }, [report.session.name, focalColor]);
+
+  useEffect(() => {
+    setEventLimit(40);
+  }, [eventFilter, scope]);
 
   const red = getFighter(report, "red");
   const blue = getFighter(report, "blue");
   const redName = red?.name ?? "Red";
   const blueName = blue?.name ?? "Blue";
 
-  const { completedRounds, redDef, blueDef, keyMoments, series, durationSec } = getScopeData(report, scope);
+  const { redDef, blueDef, keyMoments, series, durationSec } = getScopeData(report, scope);
   const redFoot = redDef?.footwork;
   const blueFoot = blueDef?.footwork;
   const redHead = redDef?.head_movement;
@@ -153,135 +164,35 @@ export function SpatialHeatmapsView({
 
   return (
     <div className="flex flex-col w-full space-y-space-lg text-on-surface">
-      {/* Sub-Header View Navigation & Tactical Breadcrumb */}
+      {/* Sub-Header View Navigation & Compact Spatial Summary */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-space-md py-space-xs">
         <div className="flex items-center gap-space-sm flex-wrap">
-          <span className="font-label-caps text-label-caps text-secondary uppercase bg-surface-container px-space-sm py-space-xs rounded">
-            Telemetry Module 02
+          <span className="font-label-caps text-label-caps text-secondary uppercase bg-surface-container px-space-sm py-1 rounded">
+            Module 02
           </span>
-          <span className="text-surface-variant font-label-data text-label-data">/</span>
           <h1 className="font-headline-md text-headline-md text-on-surface uppercase tracking-tight m-0">
             Spatial Heatmaps &amp; Movement Biomechanics
           </h1>
-          <span className="flex items-center gap-space-xs font-label-data text-label-data text-outline bg-surface-container-low px-space-sm py-space-xs rounded">
-            <span className="w-1.5 h-1.5 rounded-full bg-secondary" />
+          <span className="flex items-center gap-space-xs font-label-data text-label-data text-outline bg-surface-container-low px-space-sm py-1 rounded">
+            <span className="w-1.5 h-1.5 rounded-full bg-secondary" aria-hidden="true" />
             6-DOF Skeleton Stream @ {hz}Hz
           </span>
         </div>
 
-        <div className="flex items-center bg-surface-container-low p-space-xs rounded gap-space-xs flex-wrap">
-          <button
-            type="button"
-            onClick={() => onSelectScope("all")}
-            className={`px-space-md py-space-xs rounded font-label-caps text-label-caps transition-all ${
-              scope === "all"
-                ? "bg-surface-bright text-on-surface font-semibold shadow-sm"
-                : "text-outline hover:text-on-surface hover:bg-surface-container-high"
-            }`}
-          >
-            ALL ROUNDS
-          </button>
-          {completedRounds.map((r) => (
-            <button
-              key={r.index}
-              type="button"
-              onClick={() => onSelectScope(r.index)}
-              className={`px-space-md py-space-xs rounded font-label-caps text-label-caps transition-colors ${
-                scope === r.index
-                  ? "bg-surface-bright text-on-surface font-semibold shadow-sm"
-                  : "text-outline hover:text-on-surface hover:bg-surface-container-high"
-              }`}
-            >
-              R{r.index + 1} ({clockWhole(r.duration_sec)})
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Realtime Fighter Bio Anchor Strip */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-space-md">
-        <div className="md:col-span-4 bg-surface-container-low p-space-md rounded flex items-center justify-between relative overflow-hidden shadow-sm">
-          <div className="flex items-center gap-space-md z-10 min-w-0">
-            <div className="w-12 h-12 rounded bg-surface-container-high flex flex-col items-center justify-center text-primary-container shrink-0">
-              <span className="material-symbols-outlined text-[24px]">sports_mma</span>
-              <span className="font-label-caps text-[9px] uppercase font-bold">RED</span>
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-space-xs flex-wrap">
-                <span className="font-headline-sm text-headline-sm text-on-surface uppercase font-bold truncate">
-                  {redName}
-                </span>
-                {red?.stance && (
-                  <span className="font-label-caps text-[10px] bg-on-primary-container text-primary px-space-xs rounded font-semibold uppercase">
-                    {red.stance}
-                  </span>
-                )}
-              </div>
-              <p className="font-label-data text-label-data text-outline m-0">
-                {[red?.height_m ? `${red.height_m.toFixed(2)}m` : null, red?.is_local_player ? "Local Player" : red?.ai_archetype]
-                  .filter(Boolean)
-                  .join(" · ") || "Corner 2"}
-              </p>
-            </div>
+        {/* Compact Spatial Summary Strip (replaces redundant Fighter Bio Banner) */}
+        <div className="flex items-center gap-space-md flex-wrap bg-surface-container-low px-space-md py-space-xs rounded font-label-data text-label-data">
+          <div>
+            <span className="text-outline mr-1.5">Canvas Dist:</span>
+            <span className="text-primary font-bold">{num(redFoot?.total_distance_m, 1)}m</span>
+            <span className="text-outline mx-1">vs</span>
+            <span className="text-secondary font-bold">{num(blueFoot?.total_distance_m, 1)}m</span>
           </div>
-          <div className="text-right z-10 shrink-0">
-            <div className="font-label-caps text-label-caps text-outline">CANVAS DIST.</div>
-            <div className="font-telemetry-metric-md text-telemetry-metric-md text-primary">
-              {num(redFoot?.total_distance_m, 1)}{" "}
-              <span className="font-label-data text-label-data text-outline">m</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="md:col-span-4 bg-surface-container-low p-space-md rounded flex flex-col items-center justify-center text-center shadow-sm">
-          <div className="flex items-center gap-space-sm mb-space-xs">
-            <span className="font-label-caps text-label-caps text-tertiary bg-on-tertiary-container/30 px-space-sm py-0.5 rounded font-bold uppercase tracking-wider">
-              OFFICIAL BOUT RESULT
+          <span className="text-outline" aria-hidden="true">·</span>
+          <div>
+            <span className="text-outline mr-1.5">Range Mean/Med:</span>
+            <span className="text-on-surface font-semibold">
+              {num(redFoot?.fighter_distance_m.mean, 2)}m / {num(redFoot?.fighter_distance_m.median, 2)}m
             </span>
-            <span className="font-label-data text-label-data text-outline">
-              {completedRounds.length} / {report.session.rounds_scheduled} Rds
-            </span>
-          </div>
-          <div className="font-display-hero text-telemetry-metric-lg text-on-surface font-bold tracking-tight">
-            {verdictBadge(report)}
-          </div>
-          <div className="flex items-center gap-space-md mt-space-xs font-label-data text-label-data text-outline">
-            <span>Mean Range: {num(redFoot?.fighter_distance_m.mean, 2)}m</span>
-            <span>•</span>
-            <span>Median: {num(redFoot?.fighter_distance_m.median, 2)}m</span>
-          </div>
-        </div>
-
-        <div className="md:col-span-4 bg-surface-container-low p-space-md rounded flex items-center justify-between relative overflow-hidden shadow-sm">
-          <div className="text-left z-10 shrink-0">
-            <div className="font-label-caps text-label-caps text-outline">CANVAS DIST.</div>
-            <div className="font-telemetry-metric-md text-telemetry-metric-md text-secondary">
-              {num(blueFoot?.total_distance_m, 1)}{" "}
-              <span className="font-label-data text-label-data text-outline">m</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-space-md z-10 min-w-0">
-            <div className="text-right min-w-0">
-              <div className="flex items-center justify-end gap-space-xs flex-wrap">
-                {(blue?.ai_archetype || blue?.stance) && (
-                  <span className="font-label-caps text-[10px] bg-on-secondary-container text-secondary px-space-xs rounded font-semibold uppercase">
-                    {blue?.ai_archetype ?? blue?.stance}
-                  </span>
-                )}
-                <span className="font-headline-sm text-headline-sm text-on-surface uppercase font-bold truncate">
-                  {blueName}
-                </span>
-              </div>
-              <p className="font-label-data text-label-data text-outline m-0">
-                {[blue?.stance, blue?.height_m ? `${blue.height_m.toFixed(2)}m` : null, blue?.ai_difficulty]
-                  .filter(Boolean)
-                  .join(" · ") || "Corner 1"}
-              </p>
-            </div>
-            <div className="w-12 h-12 rounded bg-surface-container-high flex flex-col items-center justify-center text-secondary shrink-0">
-              <span className="material-symbols-outlined text-[24px]">sports_mma</span>
-              <span className="font-label-caps text-[9px] uppercase font-bold">BLUE</span>
-            </div>
           </div>
         </div>
       </div>
@@ -292,12 +203,12 @@ export function SpatialHeatmapsView({
         <div className="xl:col-span-7 bg-surface-container-low p-space-lg rounded flex flex-col justify-between shadow-md">
           <div className="flex items-center justify-between mb-space-md flex-wrap gap-2">
             <div className="flex items-center gap-space-sm">
-              <span className="material-symbols-outlined text-secondary text-[20px]">radar</span>
-              <span className="font-headline-sm text-headline-sm text-on-surface uppercase">
+              <span className="material-symbols-outlined text-secondary text-[20px]" aria-hidden="true">radar</span>
+              <h2 className="font-headline-sm text-headline-sm text-on-surface uppercase m-0">
                 Ring Footprint &amp; Positional Density
-              </span>
+              </h2>
             </div>
-            <div className="flex items-center gap-space-xs bg-surface-container px-space-sm py-space-xs rounded">
+            <div className="flex items-center gap-space-xs bg-surface-container px-space-xs py-1 rounded flex-wrap">
               {(
                 [
                   ["all", "Merged", "text-on-surface"],
@@ -309,8 +220,9 @@ export function SpatialHeatmapsView({
                 <button
                   key={id}
                   type="button"
+                  aria-pressed={layer === id}
                   onClick={() => setLayer(id)}
-                  className={`font-label-data text-label-data px-space-xs py-0.5 rounded transition-colors ${colorCls} ${
+                  className={`min-h-[32px] font-label-data text-label-data px-space-sm py-1 rounded transition-colors ${colorCls} ${
                     layer === id ? "bg-surface-bright font-semibold" : "hover:bg-surface-container-high"
                   }`}
                 >
@@ -570,10 +482,12 @@ export function SpatialHeatmapsView({
           <div className="bg-surface-container-low p-space-md rounded shadow-sm flex flex-col justify-between flex-1">
             <div className="flex items-center justify-between mb-space-sm">
               <div className="flex items-center gap-space-xs">
-                <span className="material-symbols-outlined text-tertiary text-[18px]">straighten</span>
-                <span className="font-headline-sm text-headline-sm text-on-surface uppercase">
-                  Pocket &amp; Engagement Ranges
+                <span className="material-symbols-outlined text-tertiary text-[18px]" aria-hidden="true">
+                  straighten
                 </span>
+                <h2 className="font-headline-sm text-headline-sm text-on-surface uppercase m-0">
+                  Pocket &amp; Engagement Ranges
+                </h2>
               </div>
               <span className="font-label-data text-label-data text-outline">
                 Bell Span: {clockWhole(durationSec)}
@@ -649,10 +563,12 @@ export function SpatialHeatmapsView({
         <div className="lg:col-span-6 bg-surface-container-low p-space-lg rounded shadow-md flex flex-col justify-between">
           <div className="flex items-center justify-between mb-space-md">
             <div className="flex items-center gap-space-sm">
-              <span className="material-symbols-outlined text-primary text-[20px]">airline_seat_recline_extra</span>
-              <span className="font-headline-sm text-headline-sm text-on-surface uppercase">
-                Centerline &amp; Head Envelope
+              <span className="material-symbols-outlined text-primary text-[20px]" aria-hidden="true">
+                airline_seat_recline_extra
               </span>
+              <h2 className="font-headline-sm text-headline-sm text-on-surface uppercase m-0">
+                Centerline &amp; Head Envelope
+              </h2>
             </div>
             <span className="font-label-caps text-label-caps text-outline bg-surface-container px-space-sm py-space-xs rounded">
               OPPONENT FRAME
@@ -772,10 +688,12 @@ export function SpatialHeatmapsView({
             <div>
               <div className="flex items-center justify-between mb-space-sm">
                 <div className="flex items-center gap-space-sm">
-                  <span className="material-symbols-outlined text-secondary text-[20px]">crisis_alert</span>
-                  <span className="font-headline-sm text-headline-sm text-on-surface uppercase">
-                    Centerline Discipline (&ge; 0.10m Slip)
+                  <span className="material-symbols-outlined text-secondary text-[20px]" aria-hidden="true">
+                    crisis_alert
                   </span>
+                  <h2 className="font-headline-sm text-headline-sm text-on-surface uppercase m-0">
+                    Centerline Discipline (&ge; 0.10m Slip)
+                  </h2>
                 </div>
                 <span className="font-label-caps text-label-caps text-tertiary bg-on-tertiary-container/30 px-space-xs rounded font-semibold">
                   Overall: {pctPts(redHead?.off_centerline_percent)} R · {pctPts(blueHead?.off_centerline_percent)} B
@@ -911,10 +829,12 @@ export function SpatialHeatmapsView({
         <div className="xl:col-span-8 bg-surface-container-low p-space-lg rounded shadow-md">
           <div className="flex items-center justify-between mb-space-md">
             <div className="flex items-center gap-space-sm">
-              <span className="material-symbols-outlined text-secondary text-[20px]">architecture</span>
-              <span className="font-headline-sm text-headline-sm text-on-surface uppercase">
-                Stance Geometry &amp; Blade Orientation
+              <span className="material-symbols-outlined text-secondary text-[20px]" aria-hidden="true">
+                architecture
               </span>
+              <h2 className="font-headline-sm text-headline-sm text-on-surface uppercase m-0">
+                Stance Geometry &amp; Blade Orientation
+              </h2>
             </div>
             <span className="font-label-caps text-label-caps text-outline bg-surface-container px-space-sm py-space-xs rounded">
               0° SQUARE · 90° BLADED
@@ -999,33 +919,56 @@ export function SpatialHeatmapsView({
           </div>
 
           <div className="mt-space-md bg-surface-container-lowest p-space-md rounded grid grid-cols-1 md:grid-cols-2 gap-space-lg">
-            <div>
-              <div className="flex justify-between font-label-data text-label-data mb-space-xs">
+            <div className="space-y-1.5">
+              <div className="flex justify-between font-label-data text-label-data">
                 <span className="text-outline">Lead Left Shoulder Share</span>
-                <span className="text-primary font-bold">
-                  {pctPts(redFoot?.lead_left_percent)} R vs {pctPts(blueFoot?.lead_left_percent)} B
+                <span>
+                  <span className="text-primary font-bold">{pctPts(redFoot?.lead_left_percent)} R</span>
+                  <span className="text-outline mx-1">vs</span>
+                  <span className="text-secondary font-bold">{pctPts(blueFoot?.lead_left_percent)} B</span>
                 </span>
               </div>
-              <div className="w-full h-2 bg-surface-container rounded overflow-hidden flex">
-                <div
-                  className="h-full bg-primary-container"
-                  style={{ width: `${clampPct(redFoot?.lead_left_percent)}%` }}
-                />
+              <div className="space-y-1">
+                <div className="w-full h-2 bg-surface-container rounded overflow-hidden">
+                  <div
+                    className="h-full bg-primary-container rounded"
+                    style={{ width: `${clampPct(redFoot?.lead_left_percent)}%` }}
+                  />
+                </div>
+                <div className="w-full h-2 bg-surface-container rounded overflow-hidden">
+                  <div
+                    className="h-full bg-secondary rounded"
+                    style={{ width: `${clampPct(blueFoot?.lead_left_percent)}%` }}
+                  />
+                </div>
               </div>
             </div>
-            <div>
-              <div className="flex justify-between font-label-data text-label-data mb-space-xs">
+            <div className="space-y-1.5">
+              <div className="flex justify-between font-label-data text-label-data">
                 <span className="text-outline">Square Stance While Punching</span>
-                <span className="text-secondary font-bold">
-                  {pctPts(redFoot?.square_while_punching_percent)} R vs{" "}
-                  {pctPts(blueFoot?.square_while_punching_percent)} B
+                <span>
+                  <span className="text-primary font-bold">
+                    {pctPts(redFoot?.square_while_punching_percent)} R
+                  </span>
+                  <span className="text-outline mx-1">vs</span>
+                  <span className="text-secondary font-bold">
+                    {pctPts(blueFoot?.square_while_punching_percent)} B
+                  </span>
                 </span>
               </div>
-              <div className="w-full h-2 bg-surface-container rounded overflow-hidden flex">
-                <div
-                  className="h-full bg-secondary"
-                  style={{ width: `${clampPct(blueFoot?.square_while_punching_percent)}%` }}
-                />
+              <div className="space-y-1">
+                <div className="w-full h-2 bg-surface-container rounded overflow-hidden">
+                  <div
+                    className="h-full bg-primary-container rounded"
+                    style={{ width: `${clampPct(redFoot?.square_while_punching_percent)}%` }}
+                  />
+                </div>
+                <div className="w-full h-2 bg-surface-container rounded overflow-hidden">
+                  <div
+                    className="h-full bg-secondary rounded"
+                    style={{ width: `${clampPct(blueFoot?.square_while_punching_percent)}%` }}
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -1034,26 +977,36 @@ export function SpatialHeatmapsView({
         {/* Guard Integrity & Hand Return */}
         <div className="xl:col-span-4 bg-surface-container-low p-space-lg rounded shadow-md flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between mb-space-md">
+            <div className="flex items-center justify-between mb-space-md gap-2 flex-wrap">
               <div className="flex items-center gap-space-sm">
-                <span className="material-symbols-outlined text-primary text-[20px]">shield</span>
-                <span className="font-headline-sm text-headline-sm text-on-surface uppercase">Guard Integrity</span>
+                <span className="material-symbols-outlined text-primary text-[20px]" aria-hidden="true">
+                  shield
+                </span>
+                <h2 className="font-headline-sm text-headline-sm text-on-surface uppercase m-0">
+                  Guard Integrity
+                </h2>
               </div>
               <div className="flex items-center bg-surface-container-lowest p-0.5 rounded gap-1">
                 <button
                   type="button"
+                  aria-pressed={guardCorner === "red"}
                   onClick={() => setGuardCorner("red")}
-                  className={`font-label-caps text-label-caps px-space-xs py-0.5 rounded ${
-                    guardCorner === "red" ? "bg-on-primary-container text-primary font-bold" : "text-outline"
+                  className={`min-h-[32px] font-label-caps text-label-caps px-space-sm py-1 rounded ${
+                    guardCorner === "red"
+                      ? "bg-on-primary-container text-primary font-bold"
+                      : "text-outline hover:text-on-surface"
                   }`}
                 >
                   {redName}
                 </button>
                 <button
                   type="button"
+                  aria-pressed={guardCorner === "blue"}
                   onClick={() => setGuardCorner("blue")}
-                  className={`font-label-caps text-label-caps px-space-xs py-0.5 rounded ${
-                    guardCorner === "blue" ? "bg-on-secondary-container text-secondary font-bold" : "text-outline"
+                  className={`min-h-[32px] font-label-caps text-label-caps px-space-sm py-1 rounded ${
+                    guardCorner === "blue"
+                      ? "bg-on-secondary-container text-secondary font-bold"
+                      : "text-outline hover:text-on-surface"
                   }`}
                 >
                   {blueName}
@@ -1130,7 +1083,9 @@ export function SpatialHeatmapsView({
       <div className="bg-surface-container-low p-space-lg rounded shadow-md">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-space-md mb-space-md">
           <div className="flex items-center gap-space-sm">
-            <span className="material-symbols-outlined text-secondary text-[20px]">list_alt</span>
+            <span className="material-symbols-outlined text-secondary text-[20px]" aria-hidden="true">
+              list_alt
+            </span>
             <h2 className="font-headline-sm text-headline-sm text-on-surface uppercase m-0">
               Spatial Movement Event Stream
             </h2>
@@ -1138,8 +1093,9 @@ export function SpatialHeatmapsView({
           <div className="flex items-center gap-space-xs flex-wrap font-label-caps text-label-caps">
             <button
               type="button"
+              aria-pressed={eventFilter === "all"}
               onClick={() => setEventFilter("all")}
-              className={`px-space-sm py-space-xs rounded ${
+              className={`min-h-[32px] px-space-sm py-1 rounded ${
                 eventFilter === "all"
                   ? "bg-surface-bright text-on-surface font-semibold"
                   : "bg-surface-container text-outline hover:text-on-surface"
@@ -1149,8 +1105,9 @@ export function SpatialHeatmapsView({
             </button>
             <button
               type="button"
+              aria-pressed={eventFilter === "angle_cut"}
               onClick={() => setEventFilter("angle_cut")}
-              className={`px-space-sm py-space-xs rounded ${
+              className={`min-h-[32px] px-space-sm py-1 rounded ${
                 eventFilter === "angle_cut"
                   ? "bg-surface-bright text-primary font-semibold"
                   : "bg-surface-container text-primary hover:bg-surface-container-high"
@@ -1160,8 +1117,9 @@ export function SpatialHeatmapsView({
             </button>
             <button
               type="button"
+              aria-pressed={eventFilter === "duck_weave"}
               onClick={() => setEventFilter("duck_weave")}
-              className={`px-space-sm py-space-xs rounded ${
+              className={`min-h-[32px] px-space-sm py-1 rounded ${
                 eventFilter === "duck_weave"
                   ? "bg-surface-bright text-secondary font-semibold"
                   : "bg-surface-container text-secondary hover:bg-surface-container-high"
@@ -1190,7 +1148,7 @@ export function SpatialHeatmapsView({
                   </td>
                 </tr>
               )}
-              {filteredSpatialMoments.slice(0, 80).map((m, idx) => {
+              {filteredSpatialMoments.slice(0, eventLimit).map((m, idx) => {
                 const c = m.corners.length === 1 ? cornerColor(m.corners[0]) : null;
                 return (
                   <tr key={`${m.tick}-${m.type}-${idx}`} className="hover:bg-surface-container-high/60 transition-colors">
@@ -1216,6 +1174,33 @@ export function SpatialHeatmapsView({
             </tbody>
           </table>
         </div>
+
+        {filteredSpatialMoments.length > 0 && (
+          <div className="mt-space-md pt-space-sm border-t border-surface-container flex items-center justify-between flex-wrap gap-space-sm font-label-data text-label-data text-outline">
+            <span>
+              Showing {Math.min(eventLimit, filteredSpatialMoments.length)} of {filteredSpatialMoments.length}{" "}
+              spatial events
+            </span>
+            {filteredSpatialMoments.length > eventLimit && (
+              <div className="flex items-center gap-space-xs">
+                <button
+                  type="button"
+                  onClick={() => setEventLimit((n) => n + 40)}
+                  className="min-h-[32px] px-space-sm py-1 rounded bg-surface-container hover:bg-surface-bright text-on-surface transition-colors"
+                >
+                  Load more (+{Math.min(40, filteredSpatialMoments.length - eventLimit)})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEventLimit(filteredSpatialMoments.length)}
+                  className="min-h-[32px] px-space-sm py-1 rounded bg-surface-container hover:bg-surface-bright text-outline hover:text-on-surface transition-colors"
+                >
+                  Show all
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

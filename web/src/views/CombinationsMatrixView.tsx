@@ -1,9 +1,21 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import type { FightAnalytics } from "../types";
 import {
+  BLUE_HEX,
+  GRID_HEX,
+  MUTED_HEX,
+  RED_HEX,
   type ScopeSelection,
   clampPct,
-  clockWhole,
   cornerColor,
   formatTokenLabel,
   getFighter,
@@ -85,11 +97,9 @@ function buildComboInstances(offenseList: FightAnalytics["offense"]): SequencedC
 export function CombinationsMatrixView({
   report,
   scope,
-  onSelectScope,
 }: {
   report: FightAnalytics;
   scope: ScopeSelection;
-  onSelectScope: (next: ScopeSelection) => void;
 }) {
   const [sortBy, setSortBy] = useState<PatternSort>("punishment");
   const [searchQuery, setSearchQuery] = useState("");
@@ -97,12 +107,16 @@ export function CombinationsMatrixView({
   const [outcomeFilter, setOutcomeFilter] = useState<"all" | "landed" | "countered" | "high_punish">("all");
   const [page, setPage] = useState(1);
 
+  useEffect(() => {
+    setPage(1);
+  }, [scope, report.session.name]);
+
   const red = getFighter(report, "red");
   const blue = getFighter(report, "blue");
   const redName = red?.name ?? "Red";
   const blueName = blue?.name ?? "Blue";
 
-  const { completedRounds, offense, redOff, blueOff, redDef, blueDef } = getScopeData(report, scope);
+  const { offense, redOff, blueOff, redDef, blueDef } = getScopeData(report, scope);
   const redCombos = redOff?.combinations;
   const blueCombos = blueOff?.combinations;
   const redVuln = redDef?.vulnerability;
@@ -114,23 +128,16 @@ export function CombinationsMatrixView({
     blueCombos?.alternating_hand_percent,
   );
 
-  // Funnel SVG points across depths 1..5+
-  const maxDepthThrown = Math.max(
-    1,
-    ...(redCombos?.by_depth.map((d) => d.thrown) ?? [1]),
-    ...(blueCombos?.by_depth.map((d) => d.thrown) ?? [1]),
+  // Depth funnel chart data across depths 1..5+
+  const depthChartData = useMemo(
+    () =>
+      DEPTHS.map((d) => ({
+        depth: `D${d}`,
+        red: redCombos?.by_depth.find((x) => x.depth === d)?.thrown ?? 0,
+        blue: blueCombos?.by_depth.find((x) => x.depth === d)?.thrown ?? 0,
+      })),
+    [redCombos, blueCombos],
   );
-  const xCoords = [60, 230, 400, 570, 740];
-  const redPolyPoints = DEPTHS.map((d, i) => {
-    const val = redCombos?.by_depth.find((x) => x.depth === d)?.thrown ?? 0;
-    const y = 115 - (val / maxDepthThrown) * 95;
-    return `${xCoords[i]},${y.toFixed(1)}`;
-  }).join(" ");
-  const bluePolyPoints = DEPTHS.map((d, i) => {
-    const val = blueCombos?.by_depth.find((x) => x.depth === d)?.thrown ?? 0;
-    const y = 115 - (val / maxDepthThrown) * 95;
-    return `${xCoords[i]},${y.toFixed(1)}`;
-  }).join(" ");
 
   // Merged pattern cards (both corners)
   const patternCards = useMemo(() => {
@@ -181,57 +188,24 @@ export function CombinationsMatrixView({
         <div className="flex flex-col gap-space-xs">
           <div className="flex items-center gap-space-sm font-label-caps text-label-caps tracking-widest text-outline flex-wrap">
             <span className="inline-flex items-center gap-1 text-secondary">
-              <span className="w-1.5 h-1.5 rounded-full bg-secondary" />
-              SYS.DIAGNOSTICS // COMBO ENGINE
+              <span className="w-1.5 h-1.5 rounded-full bg-secondary" aria-hidden="true" />
+              MODULE 03
             </span>
-            <span className="text-surface-variant">/</span>
-            <span className="text-primary-container">MODULE 03</span>
-            <span className="text-surface-variant">/</span>
+            <span className="text-outline" aria-hidden="true">/</span>
             <span className="text-on-surface uppercase">Combinations Matrix &amp; Strike Telemetry</span>
           </div>
           <div className="flex items-center gap-space-sm flex-wrap">
-            <span className="font-headline-sm text-headline-sm uppercase tracking-tight text-on-surface">
+            <h1 className="font-headline-md text-headline-md uppercase tracking-tight text-on-surface m-0">
               Sequence Depth, Accuracy Decay &amp; Counter Windows
-            </span>
+            </h1>
             <span className="font-label-caps text-label-caps px-space-xs py-0.5 rounded bg-surface-container text-tertiary">
               GAP THRESHOLD 0.65s
             </span>
           </div>
         </div>
-
-        <div className="flex items-center bg-surface-container-lowest p-space-xs rounded flex-wrap gap-1">
-          <button
-            type="button"
-            onClick={() => {
-              onSelectScope("all");
-              setPage(1);
-            }}
-            className={`px-space-sm py-space-xs rounded font-label-data text-label-data transition-colors ${
-              scope === "all"
-                ? "bg-surface-bright text-on-surface font-semibold"
-                : "text-outline hover:text-on-surface"
-            }`}
-          >
-            Full Bout
-          </button>
-          {completedRounds.map((r) => (
-            <button
-              key={r.index}
-              type="button"
-              onClick={() => {
-                onSelectScope(r.index);
-                setPage(1);
-              }}
-              className={`px-space-sm py-space-xs rounded font-label-data text-label-data transition-colors ${
-                scope === r.index
-                  ? "bg-surface-bright text-on-surface font-semibold"
-                  : "text-outline hover:text-on-surface"
-              }`}
-            >
-              R{r.index + 1} ({clockWhole(r.duration_sec)})
-            </button>
-          ))}
-        </div>
+        <span className="font-label-data text-label-data text-outline shrink-0">
+          Scope: {scope === "all" ? "Full Bout" : `Round ${scope + 1}`}
+        </span>
       </div>
 
       {/* PRIMARY STRIKING KPI COMPARISON CARDS (5 Core Tiles) */}
@@ -342,27 +316,25 @@ export function CombinationsMatrixView({
         <div className="bg-surface-container-low p-space-md rounded-lg flex flex-col justify-between shadow-sm">
           <div className="flex items-center justify-between font-label-caps text-label-caps text-outline mb-space-xs">
             <span>MEAN LANDED SPEED</span>
-            {redOff?.velocity.max_speed != null && (
-              <span className="text-tertiary font-label-data">MAX {num(redOff.velocity.max_speed, 2)}</span>
-            )}
+            <span className="text-outline font-label-data">m/s</span>
           </div>
           <div className="flex items-baseline justify-between mb-space-sm">
-            <div className="flex items-baseline gap-1">
-              <span className="font-telemetry-metric-lg text-telemetry-metric-lg text-on-surface">
-                {num(redOff?.velocity.mean_landed, 2)}
-              </span>
-              <span className="font-label-caps text-label-caps text-outline">m/s</span>
-            </div>
-            <div className="flex flex-col text-right">
-              <span className="font-label-caps text-label-caps text-secondary">BLU MEAN</span>
-              <span className="font-label-data text-label-data text-outline">
-                {blueOff?.velocity.mean_landed != null ? `${num(blueOff.velocity.mean_landed, 2)} m/s` : "n/a (AI)"}
-              </span>
-            </div>
+            <span className="font-telemetry-metric-lg text-telemetry-metric-lg text-primary">
+              {num(redOff?.velocity.mean_landed, 2)}
+            </span>
+            <span className="font-label-data text-label-data text-outline font-bold">vs</span>
+            <span className="font-telemetry-metric-lg text-telemetry-metric-lg text-secondary">
+              {num(blueOff?.velocity.mean_landed, 2)}
+            </span>
           </div>
-          <span className="font-label-data text-label-data text-outline">
-            Speed samples: {redOff?.velocity.samples ?? 0}R · {blueOff?.velocity.samples ?? 0}B
-          </span>
+          <div className="flex justify-between font-label-caps text-label-caps text-outline bg-surface-container-lowest px-space-xs py-0.5 rounded">
+            <span>
+              MAX R: <b className="text-primary font-bold">{num(redOff?.velocity.max_speed, 1)}</b>
+            </span>
+            <span>
+              MAX B: <b className="text-secondary font-bold">{num(blueOff?.velocity.max_speed, 1)}</b>
+            </span>
+          </div>
         </div>
       </div>
 
@@ -371,10 +343,10 @@ export function CombinationsMatrixView({
         <div className="xl:col-span-8 bg-surface-container-low rounded-lg p-space-lg flex flex-col gap-space-md shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-space-xs pb-space-sm border-b border-surface-variant/40">
             <div>
-              <div className="flex items-center gap-space-xs">
-                <span className="font-headline-sm text-headline-sm text-on-surface">
+              <div className="flex items-center gap-space-xs flex-wrap">
+                <h2 className="font-headline-sm text-headline-sm text-on-surface m-0">
                   Combination Depth &amp; Kinetic Decay Funnel
-                </span>
+                </h2>
                 <span className="bg-surface-container text-secondary text-label-caps font-label-caps px-space-xs py-0.5 rounded">
                   DEPTH 1 → 5+
                 </span>
@@ -385,63 +357,47 @@ export function CombinationsMatrixView({
             </div>
             <div className="flex items-center gap-space-md font-label-caps text-label-caps">
               <span className="flex items-center gap-1 text-primary">
-                <span className="w-2 h-2 rounded-full bg-primary-container" />
+                <span className="w-2 h-2 rounded-full bg-primary-container" aria-hidden="true" />
                 {redName} (RED)
               </span>
               <span className="flex items-center gap-1 text-secondary">
-                <span className="w-2 h-2 rounded-full bg-secondary" />
+                <span className="w-2 h-2 rounded-full bg-secondary" aria-hidden="true" />
                 {blueName} (BLU)
               </span>
             </div>
           </div>
 
-          <div className="bg-surface-container-lowest p-space-md rounded-md flex flex-col gap-space-sm">
-            <svg className="w-full h-32" fill="none" preserveAspectRatio="none" viewBox="0 0 800 130">
-              {[20, 55, 90, 120].map((y) => (
-                <line
-                  key={y}
-                  x1="0"
-                  y1={y}
-                  x2="800"
-                  y2={y}
-                  stroke="#31353d"
-                  strokeDasharray="3 3"
-                  strokeWidth="0.6"
+          <div className="bg-surface-container-lowest p-space-md rounded-md h-44 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={depthChartData} margin={{ top: 8, right: 16, left: -12, bottom: 0 }}>
+                <CartesianGrid stroke={GRID_HEX} strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="depth" stroke={MUTED_HEX} tick={{ fontSize: 11 }} />
+                <YAxis stroke={MUTED_HEX} tick={{ fontSize: 11 }} allowDecimals={false} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: "#181c23", border: "1px solid #31353d", fontSize: 12 }}
+                  formatter={(value: number, name: string) => [`${value} thrown`, name]}
                 />
-              ))}
-              <polyline
-                points={redPolyPoints}
-                stroke="#ff5451"
-                strokeLinecap="round"
-                strokeWidth="2.5"
-                fill="none"
-              />
-              <polyline
-                points={bluePolyPoints}
-                stroke="#4cd7f6"
-                strokeLinecap="round"
-                strokeDasharray="4 2"
-                strokeWidth="2"
-                fill="none"
-              />
-              {DEPTHS.map((d, i) => {
-                const rVal = redCombos?.by_depth.find((x) => x.depth === d)?.thrown ?? 0;
-                const bVal = blueCombos?.by_depth.find((x) => x.depth === d)?.thrown ?? 0;
-                const ry = 115 - (rVal / maxDepthThrown) * 95;
-                const by = 115 - (bVal / maxDepthThrown) * 95;
-                return (
-                  <g key={d}>
-                    <circle cx={xCoords[i]} cy={ry} r="4" fill="#ff5451" />
-                    <circle cx={xCoords[i]} cy={by} r="3.5" fill="#4cd7f6" />
-                  </g>
-                );
-              })}
-            </svg>
-            <div className="grid grid-cols-5 text-center font-label-caps text-label-caps text-outline pt-1">
-              {DEPTHS.map((d) => (
-                <div key={d}>DEPTH {d}</div>
-              ))}
-            </div>
+                <Line
+                  type="monotone"
+                  dataKey="red"
+                  name={`${redName} (RED)`}
+                  stroke={RED_HEX}
+                  strokeWidth={2.5}
+                  dot={{ r: 4, fill: RED_HEX }}
+                  activeDot={{ r: 6 }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="blue"
+                  name={`${blueName} (BLU)`}
+                  stroke={BLUE_HEX}
+                  strokeDasharray="4 2"
+                  strokeWidth={2}
+                  dot={{ r: 3.5, fill: BLUE_HEX }}
+                  activeDot={{ r: 5 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
 
           <div className="overflow-x-auto">
@@ -487,9 +443,9 @@ export function CombinationsMatrixView({
                         {num(rD?.mean_speed, 2)} / {num(bD?.mean_speed, 2)} m/s
                       </td>
                       <td className="p-space-sm">
-                        <span className="text-tertiary">{pct(rD?.countered_rate)}</span>{" "}
+                        <span className="text-primary font-bold">{pct(rD?.countered_rate)}</span>{" "}
                         <span className="text-outline">vs</span>{" "}
-                        <span className="text-error font-bold">{pct(bD?.countered_rate)}</span>
+                        <span className="text-secondary font-bold">{pct(bD?.countered_rate)}</span>
                       </td>
                     </tr>
                   );
@@ -503,12 +459,12 @@ export function CombinationsMatrixView({
         <div className="xl:col-span-4 flex flex-col gap-space-md">
           <div className="bg-surface-container-low rounded-lg p-space-lg flex flex-col gap-space-sm shadow-sm">
             <div className="flex items-center gap-space-xs text-tertiary font-label-caps text-label-caps">
-              <span className="material-symbols-outlined text-[18px]">verified</span>
+              <span className="material-symbols-outlined text-[18px]" aria-hidden="true">verified</span>
               <span>COUNTER EXPOSURE SUMMARY</span>
             </div>
-            <div className="font-headline-sm text-headline-sm text-on-surface leading-tight">
+            <h2 className="font-headline-sm text-headline-sm text-on-surface leading-tight m-0">
               Depth-1 Entry Counter Rates
-            </div>
+            </h2>
             <p className="font-body-md text-body-md text-on-surface-variant m-0">
               On initiating strikes (Depth 1), <strong className="text-primary">{redName}</strong> was countered on{" "}
               <span className="font-label-data text-on-surface">
@@ -577,12 +533,12 @@ export function CombinationsMatrixView({
       <div className="bg-surface-container-low rounded-lg p-space-lg shadow-sm flex flex-col gap-space-md">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-space-xs pb-space-sm border-b border-surface-variant/40">
           <div>
-            <div className="flex items-center gap-space-xs">
-              <span className="font-headline-sm text-headline-sm text-on-surface">
+            <div className="flex items-center gap-space-xs flex-wrap">
+              <h2 className="font-headline-sm text-headline-sm text-on-surface m-0">
                 Sequence Signature Matrix
-              </span>
+              </h2>
               <span className="bg-tertiary/20 text-tertiary text-label-caps font-label-caps px-space-xs py-0.5 rounded">
-                PUNISHMENT CHANNELS 0+1
+                HIT DAMAGE TELEMETRY
               </span>
             </div>
             <p className="font-body-sm text-body-sm text-outline m-0 mt-0.5">
@@ -601,8 +557,9 @@ export function CombinationsMatrixView({
               <button
                 key={key}
                 type="button"
+                aria-pressed={sortBy === key}
                 onClick={() => setSortBy(key)}
-                className={`px-space-xs py-0.5 rounded font-label-data text-label-data transition-colors ${
+                className={`min-h-[32px] px-space-sm py-1 rounded font-label-data text-label-data transition-colors ${
                   sortBy === key
                     ? "bg-surface-bright text-on-surface font-semibold"
                     : "bg-surface-container text-outline hover:text-on-surface"
@@ -680,10 +637,10 @@ export function CombinationsMatrixView({
       <div className="bg-surface-container-low rounded-lg p-space-lg shadow-sm flex flex-col gap-space-md">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-space-xs pb-space-sm border-b border-surface-variant/40">
           <div>
-            <div className="flex items-center gap-space-xs">
-              <span className="font-headline-sm text-headline-sm text-on-surface">
+            <div className="flex items-center gap-space-xs flex-wrap">
+              <h2 className="font-headline-sm text-headline-sm text-on-surface m-0">
                 Vulnerability &amp; Exchange Timing Windows
-              </span>
+              </h2>
               <span className="bg-surface-container text-tertiary text-label-caps font-label-caps px-space-xs py-0.5 rounded">
                 3 DISCRETE STATES
               </span>
@@ -761,10 +718,14 @@ export function CombinationsMatrixView({
       <div className="bg-surface-container-low rounded-lg p-space-lg shadow-sm flex flex-col gap-space-md">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-space-md pb-space-sm border-b border-surface-variant/40">
           <div className="flex items-center gap-space-sm">
-            <span className="material-symbols-outlined text-secondary text-[22px]">format_list_bulleted</span>
-            <div>
-              <span className="font-headline-sm text-headline-sm text-on-surface">Interactive Combo Flow Log</span>
-              <span className="font-label-caps text-label-caps text-outline ml-space-xs">
+            <span className="material-symbols-outlined text-secondary text-[22px]" aria-hidden="true">
+              format_list_bulleted
+            </span>
+            <div className="flex items-center gap-space-xs flex-wrap">
+              <h2 className="font-headline-sm text-headline-sm text-on-surface m-0">
+                Interactive Combo Flow Log
+              </h2>
+              <span className="font-label-caps text-label-caps text-outline">
                 {filteredInstances.length} SEQUENCES
               </span>
             </div>
@@ -779,32 +740,38 @@ export function CombinationsMatrixView({
                   setSearchQuery(e.target.value);
                   setPage(1);
                 }}
+                aria-label="Filter combinations by strike name"
                 placeholder="Filter (e.g. Jab, Hook)..."
-                className="bg-surface-container-lowest text-on-surface font-label-data text-label-data px-space-sm py-1.5 pl-7 rounded outline-none focus:ring-1 focus:ring-secondary w-52"
+                className="min-h-[34px] bg-surface-container-lowest text-on-surface font-label-data text-label-data px-space-sm py-1.5 pl-7 rounded outline-none focus:ring-1 focus:ring-secondary w-52"
               />
-              <span className="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-outline text-[14px]">
+              <span
+                className="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-outline text-[14px]"
+                aria-hidden="true"
+              >
                 search
               </span>
             </div>
             <select
+              aria-label="Filter combinations by fighter"
               value={fighterFilter}
               onChange={(e) => {
                 setFighterFilter(e.target.value as "all" | "red" | "blue");
                 setPage(1);
               }}
-              className="bg-surface-container-lowest text-on-surface font-label-data text-label-data px-space-sm py-1.5 rounded outline-none cursor-pointer"
+              className="min-h-[34px] bg-surface-container-lowest text-on-surface font-label-data text-label-data px-space-sm py-1.5 rounded outline-none cursor-pointer"
             >
               <option value="all">All Fighters</option>
               <option value="red">{redName} (Red)</option>
               <option value="blue">{blueName} (Blue)</option>
             </select>
             <select
+              aria-label="Filter combinations by outcome"
               value={outcomeFilter}
               onChange={(e) => {
                 setOutcomeFilter(e.target.value as "all" | "landed" | "countered" | "high_punish");
                 setPage(1);
               }}
-              className="bg-surface-container-lowest text-on-surface font-label-data text-label-data px-space-sm py-1.5 rounded outline-none cursor-pointer"
+              className="min-h-[34px] bg-surface-container-lowest text-on-surface font-label-data text-label-data px-space-sm py-1.5 rounded outline-none cursor-pointer"
             >
               <option value="all">All Outcomes</option>
               <option value="landed">At Least 1 Landed</option>
@@ -869,7 +836,15 @@ export function CombinationsMatrixView({
                   </td>
                   <td className="p-space-sm text-on-surface">{row.thrown}-Hit</td>
                   <td className="p-space-sm">
-                    <span className={row.landed > 0 ? "text-primary font-bold" : "text-outline"}>
+                    <span
+                      className={
+                        row.landed > 0
+                          ? row.color === "red"
+                            ? "text-primary font-bold"
+                            : "text-secondary font-bold"
+                          : "text-outline"
+                      }
+                    >
                       {row.landed}/{row.thrown} ({Math.round((row.landed / row.thrown) * 100)}%)
                     </span>
                   </td>
@@ -895,18 +870,18 @@ export function CombinationsMatrixView({
               type="button"
               disabled={safePage <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="px-space-sm py-1 rounded bg-surface-container hover:bg-surface-bright disabled:opacity-40 text-on-surface transition-colors"
+              className="min-h-[32px] px-space-sm py-1 rounded bg-surface-container hover:bg-surface-bright disabled:opacity-40 text-on-surface transition-colors"
             >
               Previous
             </button>
-            <span className="px-space-sm py-1 rounded bg-surface-bright text-on-surface font-bold">
+            <span className="min-h-[32px] inline-flex items-center px-space-sm py-1 rounded bg-surface-bright text-on-surface font-bold">
               {safePage} / {totalPages}
             </span>
             <button
               type="button"
               disabled={safePage >= totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              className="px-space-sm py-1 rounded bg-surface-container hover:bg-surface-bright disabled:opacity-40 text-on-surface transition-colors"
+              className="min-h-[32px] px-space-sm py-1 rounded bg-surface-container hover:bg-surface-bright disabled:opacity-40 text-on-surface transition-colors"
             >
               Next
             </button>
